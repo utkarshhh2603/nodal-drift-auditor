@@ -1,0 +1,46 @@
+from datetime import date
+
+import pandas as pd
+
+from engine.replay import compute_expected_balance
+from engine.classify import find_events, classify_events
+
+
+def test_compute_expected_balance_simple_capture_and_settle():
+    d0, d1 = date(2026, 1, 1), date(2026, 1, 2)
+    transactions = pd.DataFrame([{"txn_id": "T1", "amount": 1000.0, "payment_date": d0, "status": "captured"}])
+    settlements = pd.DataFrame([{"settlement_id": "S1", "txn_id": "T1", "amount": 980.0, "settlement_date": d1, "status": "settled"}])
+    refunds = pd.DataFrame(columns=["refund_id", "txn_id", "amount", "refund_date", "status"])
+    fee_sweeps = pd.DataFrame([{"fee_id": "F1", "txn_id": "T1", "amount": 20.0, "swept_date": d1}])
+
+    result = compute_expected_balance(transactions, settlements, refunds, fee_sweeps, [d0, d1])
+
+    assert result.loc[result["date"] == d0, "expected_balance"].iloc[0] == 1000.0
+    # 1000 (still in) - 980 (settled out) - 20 (fee out) = 0
+    assert result.loc[result["date"] == d1, "expected_balance"].iloc[0] == 0.0
+
+
+def test_duplicate_settlement_detected():
+    # engine/replay.py's real pipeline produces pandas Timestamps (via
+    # pd.read_csv(parse_dates=...)), so the fixture uses them too rather
+    # than plain datetime.date - classify.py calls .date() on these values.
+    d0, d1 = pd.Timestamp(2026, 1, 1), pd.Timestamp(2026, 1, 2)
+    settlements = pd.DataFrame([
+        {"settlement_id": "S1", "txn_id": "T1", "amount": 500.0, "settlement_date": d1, "status": "settled"},
+        {"settlement_id": "S1dup", "txn_id": "T1", "amount": 500.0, "settlement_date": d1, "status": "settled"},
+    ])
+    refunds = pd.DataFrame(columns=["refund_id", "txn_id", "amount", "refund_date", "status"])
+    fee_sweeps = pd.DataFrame(columns=["fee_id", "txn_id", "amount", "swept_date"])
+
+    replay_df = pd.DataFrame([
+        {"date": d0, "expected_balance": 1000.0, "actual_balance": 1000.0, "drift": 0.0},
+        {"date": d1, "expected_balance": 0.0, "actual_balance": 500.0, "drift": -500.0},
+    ])
+
+    events = find_events(replay_df)
+    assert len(events) == 1
+    assert events[0]["date"] == d1
+
+    classified = classify_events(events, settlements, refunds, fee_sweeps, None)
+    assert len(classified) == 1
+    assert classified[0].bucket == "duplicate_settlement"
