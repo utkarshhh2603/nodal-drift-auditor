@@ -184,7 +184,7 @@ NOISE_GENERATORS = {
 }
 
 
-def generate(seed=DEFAULT_SEED, out_dir=None, write_csvs=True, verbose=True):
+def generate(seed=DEFAULT_SEED, out_dir=None, write_csvs=True, verbose=True, clean=False):
     """Builds one synthetic batch and returns (out_dir, ground_truth).
 
     ground_truth is a list of dicts - {txn_id, onset_date, type} - one per
@@ -193,6 +193,11 @@ def generate(seed=DEFAULT_SEED, out_dir=None, write_csvs=True, verbose=True):
     can score engine/classify.py's output against what was actually seeded,
     across many seeds, to get a measured precision/recall rather than a
     single anecdotal demo run.
+
+    clean=True skips seeding any incidents at all - every transaction goes
+    through gen_normal. It's a sanity check: the audit pipeline run against
+    this batch should report zero incidents and a 100% match, proving the
+    tool doesn't just always find something to flag.
     """
     global _rng
     _rng = random.Random(seed)
@@ -200,7 +205,7 @@ def generate(seed=DEFAULT_SEED, out_dir=None, write_csvs=True, verbose=True):
     if write_csvs:
         out_dir.mkdir(parents=True, exist_ok=True)
 
-    noise_assignment = assign_noise_indices()
+    noise_assignment = {} if clean else assign_noise_indices()
     tables = {"transactions": [], "settlements": [], "refunds": [], "fee_sweeps": []}
     true_events = []
     ground_truth = []
@@ -245,11 +250,14 @@ def generate(seed=DEFAULT_SEED, out_dir=None, write_csvs=True, verbose=True):
         _write_csv(out_dir / "fee_sweeps.csv", ["fee_id", "txn_id", "amount", "swept_date"], tables["fee_sweeps"])
         _write_csv(out_dir / "nodal_ledger.csv", ["date", "actual_balance"], nodal_ledger)
     if write_csvs and verbose:
-        print(
-            f"Generated {idx} transactions ({sum(NOISE_COUNTS.values())} seeded incidents: "
+        incident_note = "0 seeded incidents (--clean)" if clean else (
+            f"{sum(NOISE_COUNTS.values())} seeded incidents: "
             + ", ".join(f"{k}={v}" for k, v in NOISE_COUNTS.items())
-            + f"), {len(tables['settlements'])} settlements, {len(tables['refunds'])} refunds, "
-            f"{len(tables['fee_sweeps'])} fee sweeps, {len(nodal_ledger)} ledger days -> {out_dir}"
+        )
+        print(
+            f"Generated {idx} transactions ({incident_note}), {len(tables['settlements'])} settlements, "
+            f"{len(tables['refunds'])} refunds, {len(tables['fee_sweeps'])} fee sweeps, "
+            f"{len(nodal_ledger)} ledger days -> {out_dir}"
         )
 
     return out_dir, ground_truth
@@ -263,4 +271,13 @@ def _write_csv(path, header, rows):
 
 
 if __name__ == "__main__":
-    generate()
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    parser.add_argument("--out-dir", default=None, help="Default: data/generated/")
+    parser.add_argument("--clean", action="store_true",
+                         help="Seed zero incidents - every transaction reconciles. "
+                              "Sanity check: the audit pipeline should report 100%% match, 0 incidents.")
+    args = parser.parse_args()
+    generate(seed=args.seed, out_dir=args.out_dir, clean=args.clean)

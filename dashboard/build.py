@@ -31,17 +31,6 @@ BUCKET_LABELS = {
     "unexplained": "Unexplained",
 }
 
-BUCKET_FIXES = {
-    "duplicate_settlement": "Cancel the duplicate settlement instruction and reconcile the "
-        "nodal ledger against the single confirmed bank payout.",
-    "stuck_refund": "Re-trigger the refund through the payment processor and confirm the "
-        "debit actually posts to the bank before marking it processed.",
-    "fee_sweep_timing": "No action needed — the balance recovers automatically once the "
-        "delayed sweep posts. Flagged for visibility only.",
-    "unexplained": "Escalate to a human reviewer. The hypothesis below (LLM-generated when "
-        "ANTHROPIC_API_KEY is set) is a starting point, not a resolution.",
-}
-
 
 def build_incidents_json(r):
     incidents = []
@@ -54,7 +43,10 @@ def build_incidents_json(r):
             "txn_id": ev.txn_id,
             "confidence": ev.confidence,
             "detail": ev.detail,
-            "fix": BUCKET_FIXES.get(ev.bucket, ""),
+            # Real, incident-specific correcting action (cites the exact row
+            # to reverse/re-trigger) - set in engine/classify.py, not
+            # generic per-bucket boilerplate.
+            "fix": ev.suggested_fix,
         })
     incidents.sort(key=lambda i: i["date"])
     return incidents

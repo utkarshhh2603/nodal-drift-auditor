@@ -2,5 +2,7 @@ __pycache__/
 *.pyc
 .venv/
 data/generated/
+data/generated_*/
+data/_backtest_tmp/
 report.csv
 report*.csv

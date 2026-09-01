@@ -31,6 +31,7 @@ class DriftEvent:
     confidence: str
     detail: str = ""
     txn_id: str = ""  # "" for a genuinely unexplained event - it isn't tied to one
+    suggested_fix: str = ""
 
 
 @dataclass
@@ -40,6 +41,7 @@ class Candidate:
     detail: str
     txn_id: str = ""
     reversal_date: object = None  # for fee_sweep_timing: date the reversal was confirmed on
+    suggested_fix: str = ""
 
 
 def find_events(replay_df):
@@ -66,11 +68,13 @@ def classify_events(events, settlements, refunds, fee_sweeps, drift_by_date):
     # already accounts for it.
     consumed = {}
 
+    NO_AUTO_FIX = "No auto-generated fix - route to manual review."
+
     for ev in events:
         d, delta = ev["date"], ev["delta"]
         if d in consumed:
-            txn_id, detail = consumed[d]
-            results.append(DriftEvent(d, delta, "fee_sweep_timing_resolved", "high", detail, txn_id))
+            txn_id, detail, fix = consumed[d]
+            results.append(DriftEvent(d, delta, "fee_sweep_timing_resolved", "high", detail, txn_id, fix))
             continue
 
         sign = -1 if delta < 0 else 1
@@ -81,6 +85,7 @@ def classify_events(events, settlements, refunds, fee_sweeps, drift_by_date):
             results.append(DriftEvent(
                 d, delta, "unexplained", "low",
                 f"No recorded event on {d.date()} fully explains a drift of ~Rs.{abs(delta):.2f}.",
+                suggested_fix=NO_AUTO_FIX,
             ))
             continue
 
@@ -92,8 +97,10 @@ def classify_events(events, settlements, refunds, fee_sweeps, drift_by_date):
                     c.txn_id,
                     f"{c.txn_id}: balance recovered as the delayed "
                     f"fee sweep flagged on {d.date()} finally landed.",
+                    "No correcting entry needed - this was already the resolution of "
+                    f"the fee sweep flagged on {d.date()}.",
                 )
-            results.append(DriftEvent(d, event_delta, c.bucket, "high", c.detail, c.txn_id))
+            results.append(DriftEvent(d, event_delta, c.bucket, "high", c.detail, c.txn_id, c.suggested_fix))
 
         residual = round(abs(delta) - matched_total, 2)
         if residual > TOLERANCE:
@@ -101,6 +108,7 @@ def classify_events(events, settlements, refunds, fee_sweeps, drift_by_date):
                 d, sign * residual, "unexplained", "low",
                 f"Rs.{matched_total:.2f} of the Rs.{abs(delta):.2f} drift on {d.date()} is "
                 f"explained above; Rs.{residual:.2f} remains unaccounted for.",
+                suggested_fix=NO_AUTO_FIX,
             ))
 
     return results
@@ -118,11 +126,15 @@ def _gather_candidates(d, delta, sign, settlements, refunds, fee_sweeps, events)
     for txn_id in dup_groups[dup_groups > 1].index:
         rows = day_settlements[day_settlements["txn_id"] == txn_id]
         extra_amount = round(rows["amount"].iloc[0] * (len(rows) - 1), 2)
+        original_id = rows["settlement_id"].iloc[0]
+        duplicate_ids = ", ".join(rows["settlement_id"].iloc[1:])
         candidates.append(Candidate(
             "duplicate_settlement", extra_amount,
             f"{txn_id}: {len(rows)} 'settled' rows recorded on {d.date()}, "
             f"bank shows only one payout - likely a non-idempotent retry.",
             txn_id=txn_id,
+            suggested_fix=f"Reverse settlement {duplicate_ids} (Rs.{extra_amount:,.2f}) - "
+                f"duplicate of {original_id}. Confirm the bank never actually paid it out twice first.",
         ))
 
     # Stuck refund: a refund row not in 'processed' status on this day. Same
@@ -135,6 +147,8 @@ def _gather_candidates(d, delta, sign, settlements, refunds, fee_sweeps, events)
             f"{rrow['txn_id']}: refund recorded as '{rrow['status']}' on {d.date()} "
             f"but never actually debited from the bank - likely a silently failed refund.",
             txn_id=rrow["txn_id"],
+            suggested_fix=f"Re-trigger refund {rrow['refund_id']} (Rs.{rrow['amount']:,.2f}) through the "
+                f"payment processor; confirm the bank debit actually posts before marking it processed.",
         ))
 
     # Fee sweep timing: unlike the two checks above, an ordinary fee_sweep
@@ -156,6 +170,8 @@ def _gather_candidates(d, delta, sign, settlements, refunds, fee_sweeps, events)
             f"lagged until {reversal['date'].date()} - an operational sweep delay, not a real loss.",
             txn_id=frow["txn_id"],
             reversal_date=reversal["date"],
+            suggested_fix="No correcting entry needed - the balance recovers automatically "
+                f"once the delayed sweep posts (confirmed landing {reversal['date'].date()}).",
         ))
 
     return candidates

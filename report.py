@@ -5,6 +5,7 @@ Usage:
     python data/generate_data.py   # once, to produce data/generated/*.csv
     python report.py
 """
+import argparse
 import csv
 import os
 import time
@@ -59,7 +60,11 @@ def compute_report(data_dir=None):
 
 
 def main():
-    r = compute_report()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data-dir", default=None, help="Directory with the 5 recorded CSVs (default: data/generated/)")
+    args = parser.parse_args()
+
+    r = compute_report(args.data_dir)
 
     print(f"Transactions audited:   {r['transactions_audited']}")
     print(f"Days audited:            {r['total_days']}  ({r['drift_days']} with a book-vs-bank mismatch)")
@@ -78,10 +83,19 @@ def main():
         sign = "+" if ev.delta > 0 else ""
         print(f"[{ev.date.date()}] {sign}Rs.{ev.delta:.2f}  ({ev.bucket}, {ev.confidence})")
         print(f"    {ev.detail}")
+        if ev.suggested_fix:
+            print(f"    Fix: {ev.suggested_fix}")
 
-    rows = [["date", "delta", "bucket", "confidence", "txn_id", "detail"]]
-    rows += [[ev.date.date(), ev.delta, ev.bucket, ev.confidence, ev.txn_id, ev.detail] for ev in r["classified"]]
-    written_to = _write_csv_resilient(OUT_PATH, rows)
+    rows = [["date", "delta", "bucket", "confidence", "txn_id", "detail", "suggested_fix"]]
+    rows += [
+        [ev.date.date(), ev.delta, ev.bucket, ev.confidence, ev.txn_id, ev.detail, ev.suggested_fix]
+        for ev in r["classified"]
+    ]
+    # Writing against a --data-dir batch goes alongside that data instead of
+    # the default report.csv, so a one-off run (e.g. the clean-batch check)
+    # never clobbers the main demo's report.
+    out_path = Path(args.data_dir) / "report.csv" if args.data_dir else OUT_PATH
+    written_to = _write_csv_resilient(out_path, rows)
     print(f"\nWrote {written_to}")
 
 

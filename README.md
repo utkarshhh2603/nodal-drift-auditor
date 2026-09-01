@@ -45,6 +45,14 @@ python scripts/backtest.py --seeds 25
 Current result: **100% recall, 0 false positives across 400 seeded
 incidents over 25 seeds** — see [Measured accuracy](#measured-accuracy).
 
+Sanity-check against a batch with zero seeded incidents (proves the tool
+doesn't just always find something to flag):
+
+```bash
+python data/generate_data.py --clean --out-dir data/generated_clean
+python report.py --data-dir data/generated_clean
+```
+
 Build the dashboard (regenerates `dashboard/index.html` from the current
 `data/generated/` + a fresh backtest run — re-run this after regenerating
 data or changing `engine/*.py`):
@@ -93,8 +101,9 @@ python -m http.server 8000 --directory dashboard
    and a confidence level. It never re-derives arithmetic the rule engine
    already got right — that boundary is the "right tool in the right
    place" story for this track's AI-judgment criterion.
-5. **`report.py`** — orchestrates the pipeline, prints the incident summary
-   and exception table, and writes `report.csv`.
+5. **`report.py`** — orchestrates the pipeline, prints the incident summary,
+   exception table, and per-incident suggested fix, and writes `report.csv`
+   (`--data-dir` points it at any batch, not just the default one).
 
 ## What "the bar" looks like here
 
@@ -111,6 +120,15 @@ python -m http.server 8000 --directory dashboard
   explain. That residual is reported honestly, not hidden.
 - **Audit trail**: every classified event cites the specific transaction
   and recorded row(s) it's based on.
+- **Suggested fix, not just diagnosis**: each incident carries a specific
+  correcting action citing the exact row — "Reverse settlement S0173dup —
+  duplicate of S0173" or "Re-trigger refund R0013" — not generic per-bucket
+  advice. `fee_sweep_timing` gets "no action needed" (it self-resolves) and
+  `unexplained` gets "route to manual review," honestly, rather than a
+  fabricated fix for something the rule engine doesn't actually understand.
+  This is still diagnosis-and-recommendation, not autonomous execution —
+  gated for a human to apply, matching the track's own bar ("every money
+  action explainable, bounded and gated").
 
 ## Measured accuracy
 
@@ -132,6 +150,20 @@ False-positive candidates: 0
 means "correctly left unexplained for the LLM" — that failure mode has no
 rule-based signature by design, so 100% there means the rule engine never
 falsely claims to explain it with the wrong cause.
+
+**Clean-batch sanity check** (`python data/generate_data.py --clean` +
+`python report.py --data-dir ...`, real output, not hypothetical):
+
+```
+Transactions audited:   360
+Days audited:            96  (0 with a book-vs-bank mismatch)
+Incidents detected:      0
+  Value at risk (action needed):   Rs.0.00
+  Self-resolving timing noise:     Rs.0.00  (delayed fee sweeps, not a real loss)
+Detection: 0/0 incidents explained same-day by rules; 0 handed to LLM review
+```
+Zero incidents on a batch seeded with zero incidents — the tool doesn't
+just always find something to flag.
 
 ## Dashboard
 
