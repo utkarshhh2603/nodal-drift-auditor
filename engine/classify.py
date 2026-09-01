@@ -30,6 +30,7 @@ class DriftEvent:
     bucket: str
     confidence: str
     detail: str = ""
+    txn_id: str = ""  # "" for a genuinely unexplained event - it isn't tied to one
 
 
 @dataclass
@@ -37,7 +38,7 @@ class Candidate:
     bucket: str
     amount: float  # always positive; sign is inferred from the day's delta
     detail: str
-    reversal_lookup: dict = None  # for fee_sweep_timing: {"txn_id": ...}
+    txn_id: str = ""
     reversal_date: object = None  # for fee_sweep_timing: date the reversal was confirmed on
 
 
@@ -68,7 +69,8 @@ def classify_events(events, settlements, refunds, fee_sweeps, drift_by_date):
     for ev in events:
         d, delta = ev["date"], ev["delta"]
         if d in consumed:
-            results.append(DriftEvent(d, delta, "fee_sweep_timing_resolved", "high", consumed[d]))
+            txn_id, detail = consumed[d]
+            results.append(DriftEvent(d, delta, "fee_sweep_timing_resolved", "high", detail, txn_id))
             continue
 
         sign = -1 if delta < 0 else 1
@@ -87,10 +89,11 @@ def classify_events(events, settlements, refunds, fee_sweeps, drift_by_date):
             event_delta = sign * c.amount
             if c.bucket == "fee_sweep_timing":
                 consumed[c.reversal_date] = (
-                    f"{c.reversal_lookup['txn_id']}: balance recovered as the delayed "
-                    f"fee sweep flagged on {d.date()} finally landed."
+                    c.txn_id,
+                    f"{c.txn_id}: balance recovered as the delayed "
+                    f"fee sweep flagged on {d.date()} finally landed.",
                 )
-            results.append(DriftEvent(d, event_delta, c.bucket, "high", c.detail))
+            results.append(DriftEvent(d, event_delta, c.bucket, "high", c.detail, c.txn_id))
 
         residual = round(abs(delta) - matched_total, 2)
         if residual > TOLERANCE:
@@ -119,6 +122,7 @@ def _gather_candidates(d, delta, sign, settlements, refunds, fee_sweeps, events)
             "duplicate_settlement", extra_amount,
             f"{txn_id}: {len(rows)} 'settled' rows recorded on {d.date()}, "
             f"bank shows only one payout - likely a non-idempotent retry.",
+            txn_id=txn_id,
         ))
 
     # Stuck refund: a refund row not in 'processed' status on this day. Same
@@ -130,6 +134,7 @@ def _gather_candidates(d, delta, sign, settlements, refunds, fee_sweeps, events)
             "stuck_refund", round(rrow["amount"], 2),
             f"{rrow['txn_id']}: refund recorded as '{rrow['status']}' on {d.date()} "
             f"but never actually debited from the bank - likely a silently failed refund.",
+            txn_id=rrow["txn_id"],
         ))
 
     # Fee sweep timing: unlike the two checks above, an ordinary fee_sweep
@@ -149,7 +154,7 @@ def _gather_candidates(d, delta, sign, settlements, refunds, fee_sweeps, events)
             "fee_sweep_timing", amount,
             f"{frow['txn_id']}: fee recorded as swept on {d.date()}, but the bank debit "
             f"lagged until {reversal['date'].date()} - an operational sweep delay, not a real loss.",
-            reversal_lookup={"txn_id": frow["txn_id"]},
+            txn_id=frow["txn_id"],
             reversal_date=reversal["date"],
         ))
 

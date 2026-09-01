@@ -43,19 +43,17 @@ def run_one_seed(seed):
     events = classify.find_events(merged)
     classified = classify.classify_events(events, settlements, refunds, fee_sweeps, None)
 
-    # Rule-classified events cite the txn_id in their detail text directly.
-    # A genuinely "unexplained" event doesn't (correctly - the rule engine
+    # Rule-classified events carry the txn_id they're about directly. A
+    # genuinely "unexplained" event doesn't (correctly - the rule engine
     # really doesn't know which transaction caused it), so those are
     # matched back to a seeded incident by date instead: the generator
     # spaces every incident onto its own day (assign_noise_indices), so an
     # onset date uniquely identifies which incident produced that day's drift.
+    by_txn_id = {gt["txn_id"]: gt for gt in ground_truth}
     by_onset_date = {gt["onset_date"]: gt for gt in ground_truth}
 
     def matching_incident(ev):
-        for gt in ground_truth:
-            if gt["txn_id"] in ev.detail:
-                return gt
-        return by_onset_date.get(ev.date.date())
+        return by_txn_id.get(ev.txn_id) or by_onset_date.get(ev.date.date())
 
     event_to_gt = {id(ev): matching_incident(ev) for ev in classified}
     hits_by_txn_id = {

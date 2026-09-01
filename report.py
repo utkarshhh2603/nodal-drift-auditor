@@ -16,9 +16,18 @@ from engine import classify, llm_explain, replay
 OUT_PATH = Path(__file__).parent / "report.csv"
 
 
-def main():
-    transactions, settlements, refunds, fee_sweeps, nodal_ledger = replay.load_tables()
-    merged = replay.run()
+# "fee_sweep_timing_resolved" events are the same incident as the
+# fee_sweep_timing event that flagged them, not a second incident, so
+# they're excluded from the incident count and value totals below.
+ACTION_NEEDED_BUCKETS = {"duplicate_settlement", "stuck_refund", "unexplained"}
+SELF_RESOLVING_BUCKETS = {"fee_sweep_timing"}
+
+
+def compute_report(data_dir=None):
+    """Runs the full pipeline and returns everything report.py's CLI output
+    and dashboard/build.py's HTML both need, so neither has to re-derive it."""
+    transactions, settlements, refunds, fee_sweeps, nodal_ledger = replay.load_tables(data_dir)
+    merged = replay.run(data_dir)
 
     total_days = len(merged)
     events = classify.find_events(merged)
@@ -26,40 +35,52 @@ def main():
     classified = llm_explain.explain_unexplained(classified, transactions, settlements, refunds, fee_sweeps)
 
     drift_days = int((merged["drift"].abs() > classify.TOLERANCE).sum())
-
-    # "fee_sweep_timing_resolved" events are the same incident as the
-    # fee_sweep_timing event that flagged them, not a second incident, so
-    # they're excluded from the incident count and value totals below.
-    ACTION_NEEDED_BUCKETS = {"duplicate_settlement", "stuck_refund", "unexplained"}
-    SELF_RESOLVING_BUCKETS = {"fee_sweep_timing"}
-    incidents = [ev for ev in classified if ev.bucket not in {"fee_sweep_timing_resolved"}]
+    incidents = [ev for ev in classified if ev.bucket != "fee_sweep_timing_resolved"]
     value_at_risk = sum(abs(ev.delta) for ev in classified if ev.bucket in ACTION_NEEDED_BUCKETS)
     self_resolving_value = sum(abs(ev.delta) for ev in classified if ev.bucket in SELF_RESOLVING_BUCKETS)
     rule_classified = sum(1 for ev in incidents if ev.bucket != "unexplained")
 
-    print(f"Transactions audited:   {len(transactions)}")
-    print(f"Days audited:            {total_days}  ({drift_days} with a book-vs-bank mismatch)")
-    print(f"Incidents detected:      {len(incidents)}")
-    print(f"  Value at risk (action needed):   Rs.{value_at_risk:,.2f}")
-    print(f"  Self-resolving timing noise:     Rs.{self_resolving_value:,.2f}  (delayed fee sweeps, not a real loss)")
-    print(f"Detection: {rule_classified}/{len(incidents)} incidents explained same-day by rules; "
-          f"{len(incidents) - rule_classified} handed to LLM review")
-    print()
-
     bucket_counts = {}
     for ev in classified:
         bucket_counts[ev.bucket] = bucket_counts.get(ev.bucket, 0) + 1
-    for bucket, count in sorted(bucket_counts.items()):
+
+    return {
+        "transactions_audited": len(transactions),
+        "total_days": total_days,
+        "drift_days": drift_days,
+        "classified": classified,
+        "incidents": incidents,
+        "value_at_risk": value_at_risk,
+        "self_resolving_value": self_resolving_value,
+        "rule_classified": rule_classified,
+        "llm_classified": len(incidents) - rule_classified,
+        "bucket_counts": bucket_counts,
+    }
+
+
+def main():
+    r = compute_report()
+
+    print(f"Transactions audited:   {r['transactions_audited']}")
+    print(f"Days audited:            {r['total_days']}  ({r['drift_days']} with a book-vs-bank mismatch)")
+    print(f"Incidents detected:      {len(r['incidents'])}")
+    print(f"  Value at risk (action needed):   Rs.{r['value_at_risk']:,.2f}")
+    print(f"  Self-resolving timing noise:     Rs.{r['self_resolving_value']:,.2f}  (delayed fee sweeps, not a real loss)")
+    print(f"Detection: {r['rule_classified']}/{len(r['incidents'])} incidents explained same-day by rules; "
+          f"{r['llm_classified']} handed to LLM review")
+    print()
+
+    for bucket, count in sorted(r["bucket_counts"].items()):
         print(f"  {bucket:<26} {count}")
     print()
 
-    for ev in classified:
+    for ev in r["classified"]:
         sign = "+" if ev.delta > 0 else ""
         print(f"[{ev.date.date()}] {sign}Rs.{ev.delta:.2f}  ({ev.bucket}, {ev.confidence})")
         print(f"    {ev.detail}")
 
-    rows = [["date", "delta", "bucket", "confidence", "detail"]]
-    rows += [[ev.date.date(), ev.delta, ev.bucket, ev.confidence, ev.detail] for ev in classified]
+    rows = [["date", "delta", "bucket", "confidence", "txn_id", "detail"]]
+    rows += [[ev.date.date(), ev.delta, ev.bucket, ev.confidence, ev.txn_id, ev.detail] for ev in r["classified"]]
     written_to = _write_csv_resilient(OUT_PATH, rows)
     print(f"\nWrote {written_to}")
 
