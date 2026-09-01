@@ -124,7 +124,9 @@ def test_unexplained_event_gets_manual_review_fix_not_a_fabricated_one():
 
     assert len(classified) == 1
     assert classified[0].bucket == "unexplained"
-    assert "manual review" in classified[0].suggested_fix.lower()
+    # Should honestly say a person needs to look at it, not fabricate a fix
+    # for something the rule engine doesn't actually understand.
+    assert "person" in classified[0].suggested_fix.lower()
 
 
 def test_best_subset_dispatches_to_greedy_above_the_exponential_search_limit():

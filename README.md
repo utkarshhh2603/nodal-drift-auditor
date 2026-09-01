@@ -120,15 +120,20 @@ python -m http.server 8000 --directory dashboard
   explain. That residual is reported honestly, not hidden.
 - **Audit trail**: every classified event cites the specific transaction
   and recorded row(s) it's based on.
-- **Suggested fix, not just diagnosis**: each incident carries a specific
-  correcting action citing the exact row — "Reverse settlement S0173dup —
-  duplicate of S0173" or "Re-trigger refund R0013" — not generic per-bucket
-  advice. `fee_sweep_timing` gets "no action needed" (it self-resolves) and
-  `unexplained` gets "route to manual review," honestly, rather than a
-  fabricated fix for something the rule engine doesn't actually understand.
-  This is still diagnosis-and-recommendation, not autonomous execution —
-  gated for a human to apply, matching the track's own bar ("every money
-  action explainable, bounded and gated").
+- **Suggested fix in plain language, not just diagnosis**: both the "what
+  happened" and "the fix" are written as something a non-technical reviewer
+  can read at a glance — e.g. *"This payment was recorded as paid out to
+  the merchant twice, but the bank only actually sent the money once"* /
+  *"Delete the duplicate payout entry, keeping only the original — first
+  double-check against the bank statement."* — while still citing the exact
+  row (settlement/refund ID) so it stays specific and auditable, not vague.
+  `fee_sweep_timing` says plainly "nothing to do — it already balanced
+  itself out," and `unexplained` says "this needs a person to look into
+  directly," honestly, rather than a fabricated fix for something the rule
+  engine doesn't actually understand. This is still diagnosis-and-
+  recommendation, not autonomous execution — gated for a human to apply,
+  matching the track's own bar ("every money action explainable, bounded
+  and gated").
 
 ## Measured accuracy
 

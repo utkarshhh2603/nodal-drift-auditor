@@ -608,8 +608,8 @@ const DATA = {
       "delta": -12380.51,
       "txn_id": "T0013",
       "confidence": "high",
-      "detail": "T0013: refund recorded as 'issued' on 2026-08-05 but never actually debited from the bank - likely a silently failed refund.",
-      "fix": "Re-trigger refund R0013 (Rs.12,380.51) through the payment processor; confirm the bank debit actually posts before marking it processed."
+      "detail": "A refund for T0013 was started on 2026-08-05 and marked as done, but the money never actually left the bank account - the refund silently failed somewhere along the way.",
+      "fix": "Try the refund again (R0013), and this time don't mark it complete until you can see the money actually leave the account."
     },
     {
       "date": "2026-08-10",
@@ -618,8 +618,8 @@ const DATA = {
       "delta": -51.93,
       "txn_id": "T0032",
       "confidence": "high",
-      "detail": "T0032: fee recorded as swept on 2026-08-10, but the bank debit lagged until 2026-08-13 - an operational sweep delay, not a real loss.",
-      "fix": "No correcting entry needed - the balance recovers automatically once the delayed sweep posts (confirmed landing 2026-08-13)."
+      "detail": "Razorpay's fee for T0032 was supposed to come out of the account on 2026-08-10, but the bank didn't actually take the money until 2026-08-13 - a short delay, not a real loss.",
+      "fix": "Nothing to do - the books already balanced themselves out once the late payment came through on 2026-08-13."
     },
     {
       "date": "2026-08-15",
@@ -628,8 +628,8 @@ const DATA = {
       "delta": -14184.38,
       "txn_id": "T0053",
       "confidence": "high",
-      "detail": "T0053: refund recorded as 'issued' on 2026-08-15 but never actually debited from the bank - likely a silently failed refund.",
-      "fix": "Re-trigger refund R0053 (Rs.14,184.38) through the payment processor; confirm the bank debit actually posts before marking it processed."
+      "detail": "A refund for T0053 was started on 2026-08-15 and marked as done, but the money never actually left the bank account - the refund silently failed somewhere along the way.",
+      "fix": "Try the refund again (R0053), and this time don't mark it complete until you can see the money actually leave the account."
     },
     {
       "date": "2026-08-20",
@@ -638,8 +638,8 @@ const DATA = {
       "delta": -35415.56,
       "txn_id": "T0075",
       "confidence": "high",
-      "detail": "T0075: refund recorded as 'issued' on 2026-08-20 but never actually debited from the bank - likely a silently failed refund.",
-      "fix": "Re-trigger refund R0075 (Rs.35,415.56) through the payment processor; confirm the bank debit actually posts before marking it processed."
+      "detail": "A refund for T0075 was started on 2026-08-20 and marked as done, but the money never actually left the bank account - the refund silently failed somewhere along the way.",
+      "fix": "Try the refund again (R0075), and this time don't mark it complete until you can see the money actually leave the account."
     },
     {
       "date": "2026-08-25",
@@ -648,8 +648,8 @@ const DATA = {
       "delta": -6945.72,
       "txn_id": "",
       "confidence": "low",
-      "detail": "No recorded event on 2026-08-25 fully explains a drift of ~Rs.6945.72.",
-      "fix": "No auto-generated fix - route to manual review."
+      "detail": "On 2026-08-25, the money in the account doesn't match what the records say it should (off by about Rs.6,945.72) - and none of the usual explanations (a duplicate payout, a failed refund, a late fee) account for it.",
+      "fix": "This needs a person to look into directly - there isn't enough information here to safely guess what happened."
     },
     {
       "date": "2026-08-30",
@@ -658,8 +658,8 @@ const DATA = {
       "delta": -679.16,
       "txn_id": "T0115",
       "confidence": "high",
-      "detail": "T0115: fee recorded as swept on 2026-08-30, but the bank debit lagged until 2026-09-02 - an operational sweep delay, not a real loss.",
-      "fix": "No correcting entry needed - the balance recovers automatically once the delayed sweep posts (confirmed landing 2026-09-02)."
+      "detail": "Razorpay's fee for T0115 was supposed to come out of the account on 2026-08-30, but the bank didn't actually take the money until 2026-09-02 - a short delay, not a real loss.",
+      "fix": "Nothing to do - the books already balanced themselves out once the late payment came through on 2026-09-02."
     },
     {
       "date": "2026-09-04",
@@ -668,8 +668,8 @@ const DATA = {
       "delta": -7739.65,
       "txn_id": "",
       "confidence": "low",
-      "detail": "No recorded event on 2026-09-04 fully explains a drift of ~Rs.7739.65.",
-      "fix": "No auto-generated fix - route to manual review."
+      "detail": "On 2026-09-04, the money in the account doesn't match what the records say it should (off by about Rs.7,739.65) - and none of the usual explanations (a duplicate payout, a failed refund, a late fee) account for it.",
+      "fix": "This needs a person to look into directly - there isn't enough information here to safely guess what happened."
     },
     {
       "date": "2026-09-09",
@@ -678,8 +678,8 @@ const DATA = {
       "delta": -794.46,
       "txn_id": "T0152",
       "confidence": "high",
-      "detail": "T0152: fee recorded as swept on 2026-09-09, but the bank debit lagged until 2026-09-12 - an operational sweep delay, not a real loss.",
-      "fix": "No correcting entry needed - the balance recovers automatically once the delayed sweep posts (confirmed landing 2026-09-12)."
+      "detail": "Razorpay's fee for T0152 was supposed to come out of the account on 2026-09-09, but the bank didn't actually take the money until 2026-09-12 - a short delay, not a real loss.",
+      "fix": "Nothing to do - the books already balanced themselves out once the late payment came through on 2026-09-12."
     },
     {
       "date": "2026-09-14",
@@ -688,8 +688,8 @@ const DATA = {
       "delta": -17288.38,
       "txn_id": "T0173",
       "confidence": "high",
-      "detail": "T0173: 2 'settled' rows recorded on 2026-09-14, bank shows only one payout - likely a non-idempotent retry.",
-      "fix": "Reverse settlement S0173dup (Rs.17,288.38) - duplicate of S0173. Confirm the bank never actually paid it out twice first."
+      "detail": "This payment (T0173) was recorded as paid out to the merchant twice on 2026-09-14, but the bank only actually sent the money once - most likely an automatic retry created a duplicate entry instead of noticing the first one already went through.",
+      "fix": "Delete the duplicate payout entry (S0173dup) from the records, keeping only S0173. First double-check against the actual bank statement that the merchant really was paid only once."
     },
     {
       "date": "2026-09-19",
@@ -698,8 +698,8 @@ const DATA = {
       "delta": -22968.86,
       "txn_id": "T0195",
       "confidence": "high",
-      "detail": "T0195: 2 'settled' rows recorded on 2026-09-19, bank shows only one payout - likely a non-idempotent retry.",
-      "fix": "Reverse settlement S0195dup (Rs.22,968.86) - duplicate of S0195. Confirm the bank never actually paid it out twice first."
+      "detail": "This payment (T0195) was recorded as paid out to the merchant twice on 2026-09-19, but the bank only actually sent the money once - most likely an automatic retry created a duplicate entry instead of noticing the first one already went through.",
+      "fix": "Delete the duplicate payout entry (S0195dup) from the records, keeping only S0195. First double-check against the actual bank statement that the merchant really was paid only once."
     },
     {
       "date": "2026-09-24",
@@ -708,8 +708,8 @@ const DATA = {
       "delta": -16067.38,
       "txn_id": "",
       "confidence": "low",
-      "detail": "No recorded event on 2026-09-24 fully explains a drift of ~Rs.16067.38.",
-      "fix": "No auto-generated fix - route to manual review."
+      "detail": "On 2026-09-24, the money in the account doesn't match what the records say it should (off by about Rs.16,067.38) - and none of the usual explanations (a duplicate payout, a failed refund, a late fee) account for it.",
+      "fix": "This needs a person to look into directly - there isn't enough information here to safely guess what happened."
     },
     {
       "date": "2026-09-29",
@@ -718,8 +718,8 @@ const DATA = {
       "delta": -13611.86,
       "txn_id": "",
       "confidence": "low",
-      "detail": "No recorded event on 2026-09-29 fully explains a drift of ~Rs.13611.86.",
-      "fix": "No auto-generated fix - route to manual review."
+      "detail": "On 2026-09-29, the money in the account doesn't match what the records say it should (off by about Rs.13,611.86) - and none of the usual explanations (a duplicate payout, a failed refund, a late fee) account for it.",
+      "fix": "This needs a person to look into directly - there isn't enough information here to safely guess what happened."
     },
     {
       "date": "2026-10-04",
@@ -728,8 +728,8 @@ const DATA = {
       "delta": -44995.9,
       "txn_id": "T0253",
       "confidence": "high",
-      "detail": "T0253: refund recorded as 'issued' on 2026-10-04 but never actually debited from the bank - likely a silently failed refund.",
-      "fix": "Re-trigger refund R0253 (Rs.44,995.90) through the payment processor; confirm the bank debit actually posts before marking it processed."
+      "detail": "A refund for T0253 was started on 2026-10-04 and marked as done, but the money never actually left the bank account - the refund silently failed somewhere along the way.",
+      "fix": "Try the refund again (R0253), and this time don't mark it complete until you can see the money actually leave the account."
     },
     {
       "date": "2026-10-09",
@@ -738,8 +738,8 @@ const DATA = {
       "delta": -319.01,
       "txn_id": "T0273",
       "confidence": "high",
-      "detail": "T0273: fee recorded as swept on 2026-10-09, but the bank debit lagged until 2026-10-12 - an operational sweep delay, not a real loss.",
-      "fix": "No correcting entry needed - the balance recovers automatically once the delayed sweep posts (confirmed landing 2026-10-12)."
+      "detail": "Razorpay's fee for T0273 was supposed to come out of the account on 2026-10-09, but the bank didn't actually take the money until 2026-10-12 - a short delay, not a real loss.",
+      "fix": "Nothing to do - the books already balanced themselves out once the late payment came through on 2026-10-12."
     },
     {
       "date": "2026-10-14",
@@ -748,8 +748,8 @@ const DATA = {
       "delta": -4223.58,
       "txn_id": "T0294",
       "confidence": "high",
-      "detail": "T0294: 2 'settled' rows recorded on 2026-10-14, bank shows only one payout - likely a non-idempotent retry.",
-      "fix": "Reverse settlement S0294dup (Rs.4,223.58) - duplicate of S0294. Confirm the bank never actually paid it out twice first."
+      "detail": "This payment (T0294) was recorded as paid out to the merchant twice on 2026-10-14, but the bank only actually sent the money once - most likely an automatic retry created a duplicate entry instead of noticing the first one already went through.",
+      "fix": "Delete the duplicate payout entry (S0294dup) from the records, keeping only S0294. First double-check against the actual bank statement that the merchant really was paid only once."
     },
     {
       "date": "2026-10-19",
@@ -758,8 +758,8 @@ const DATA = {
       "delta": -10410.54,
       "txn_id": "T0312",
       "confidence": "high",
-      "detail": "T0312: 2 'settled' rows recorded on 2026-10-19, bank shows only one payout - likely a non-idempotent retry.",
-      "fix": "Reverse settlement S0312dup (Rs.10,410.54) - duplicate of S0312. Confirm the bank never actually paid it out twice first."
+      "detail": "This payment (T0312) was recorded as paid out to the merchant twice on 2026-10-19, but the bank only actually sent the money once - most likely an automatic retry created a duplicate entry instead of noticing the first one already went through.",
+      "fix": "Delete the duplicate payout entry (S0312dup) from the records, keeping only S0312. First double-check against the actual bank statement that the merchant really was paid only once."
     }
   ],
   "backtest": {

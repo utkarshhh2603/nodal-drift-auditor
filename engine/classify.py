@@ -68,7 +68,7 @@ def classify_events(events, settlements, refunds, fee_sweeps, drift_by_date):
     # already accounts for it.
     consumed = {}
 
-    NO_AUTO_FIX = "No auto-generated fix - route to manual review."
+    NO_AUTO_FIX = "This needs a person to look into directly - there isn't enough information here to safely guess what happened."
 
     for ev in events:
         d, delta = ev["date"], ev["delta"]
@@ -84,7 +84,9 @@ def classify_events(events, settlements, refunds, fee_sweeps, drift_by_date):
         if not chosen:
             results.append(DriftEvent(
                 d, delta, "unexplained", "low",
-                f"No recorded event on {d.date()} fully explains a drift of ~Rs.{abs(delta):.2f}.",
+                f"On {d.date()}, the money in the account doesn't match what the records say it "
+                f"should (off by about Rs.{abs(delta):,.2f}) - and none of the usual explanations "
+                f"(a duplicate payout, a failed refund, a late fee) account for it.",
                 suggested_fix=NO_AUTO_FIX,
             ))
             continue
@@ -95,10 +97,9 @@ def classify_events(events, settlements, refunds, fee_sweeps, drift_by_date):
             if c.bucket == "fee_sweep_timing":
                 consumed[c.reversal_date] = (
                     c.txn_id,
-                    f"{c.txn_id}: balance recovered as the delayed "
-                    f"fee sweep flagged on {d.date()} finally landed.",
-                    "No correcting entry needed - this was already the resolution of "
-                    f"the fee sweep flagged on {d.date()}.",
+                    f"This is the moment the late fee payment (flagged on {d.date()}) finally "
+                    f"came through - the books are back in balance now.",
+                    "Nothing to do - this was already resolved by the late payment flagged earlier.",
                 )
             results.append(DriftEvent(d, event_delta, c.bucket, "high", c.detail, c.txn_id, c.suggested_fix))
 
@@ -106,8 +107,9 @@ def classify_events(events, settlements, refunds, fee_sweeps, drift_by_date):
         if residual > TOLERANCE:
             results.append(DriftEvent(
                 d, sign * residual, "unexplained", "low",
-                f"Rs.{matched_total:.2f} of the Rs.{abs(delta):.2f} drift on {d.date()} is "
-                f"explained above; Rs.{residual:.2f} remains unaccounted for.",
+                f"Part of the money missing on {d.date()} - Rs.{matched_total:,.2f} of it - is "
+                f"explained above. The remaining Rs.{residual:,.2f} doesn't match any of the "
+                f"usual explanations.",
                 suggested_fix=NO_AUTO_FIX,
             ))
 
@@ -130,11 +132,14 @@ def _gather_candidates(d, delta, sign, settlements, refunds, fee_sweeps, events)
         duplicate_ids = ", ".join(rows["settlement_id"].iloc[1:])
         candidates.append(Candidate(
             "duplicate_settlement", extra_amount,
-            f"{txn_id}: {len(rows)} 'settled' rows recorded on {d.date()}, "
-            f"bank shows only one payout - likely a non-idempotent retry.",
+            f"This payment ({txn_id}) was recorded as paid out to the merchant twice on "
+            f"{d.date()}, but the bank only actually sent the money once - most likely an "
+            f"automatic retry created a duplicate entry instead of noticing the first one "
+            f"already went through.",
             txn_id=txn_id,
-            suggested_fix=f"Reverse settlement {duplicate_ids} (Rs.{extra_amount:,.2f}) - "
-                f"duplicate of {original_id}. Confirm the bank never actually paid it out twice first.",
+            suggested_fix=f"Delete the duplicate payout entry ({duplicate_ids}) from the records, "
+                f"keeping only {original_id}. First double-check against the actual bank "
+                f"statement that the merchant really was paid only once.",
         ))
 
     # Stuck refund: a refund row not in 'processed' status on this day. Same
@@ -144,11 +149,12 @@ def _gather_candidates(d, delta, sign, settlements, refunds, fee_sweeps, events)
     for _, rrow in day_refunds.iterrows():
         candidates.append(Candidate(
             "stuck_refund", round(rrow["amount"], 2),
-            f"{rrow['txn_id']}: refund recorded as '{rrow['status']}' on {d.date()} "
-            f"but never actually debited from the bank - likely a silently failed refund.",
+            f"A refund for {rrow['txn_id']} was started on {d.date()} and marked as done, but "
+            f"the money never actually left the bank account - the refund silently failed "
+            f"somewhere along the way.",
             txn_id=rrow["txn_id"],
-            suggested_fix=f"Re-trigger refund {rrow['refund_id']} (Rs.{rrow['amount']:,.2f}) through the "
-                f"payment processor; confirm the bank debit actually posts before marking it processed.",
+            suggested_fix=f"Try the refund again ({rrow['refund_id']}), and this time don't mark "
+                f"it complete until you can see the money actually leave the account.",
         ))
 
     # Fee sweep timing: unlike the two checks above, an ordinary fee_sweep
@@ -166,12 +172,13 @@ def _gather_candidates(d, delta, sign, settlements, refunds, fee_sweeps, events)
             continue
         candidates.append(Candidate(
             "fee_sweep_timing", amount,
-            f"{frow['txn_id']}: fee recorded as swept on {d.date()}, but the bank debit "
-            f"lagged until {reversal['date'].date()} - an operational sweep delay, not a real loss.",
+            f"Razorpay's fee for {frow['txn_id']} was supposed to come out of the account on "
+            f"{d.date()}, but the bank didn't actually take the money until "
+            f"{reversal['date'].date()} - a short delay, not a real loss.",
             txn_id=frow["txn_id"],
             reversal_date=reversal["date"],
-            suggested_fix="No correcting entry needed - the balance recovers automatically "
-                f"once the delayed sweep posts (confirmed landing {reversal['date'].date()}).",
+            suggested_fix="Nothing to do - the books already balanced themselves out once the "
+                f"late payment came through on {reversal['date'].date()}.",
         ))
 
     return candidates
