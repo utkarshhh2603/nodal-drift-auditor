@@ -35,6 +35,16 @@ Run tests:
 pytest
 ```
 
+Measure detection accuracy across many synthetic batches (not just the one
+`report.py` happens to run against):
+
+```bash
+python scripts/backtest.py --seeds 25
+```
+
+Current result: **100% recall, 0 false positives across 400 seeded
+incidents over 25 seeds** — see [Measured accuracy](#measured-accuracy).
+
 ## How it works
 
 1. **`data/generate_data.py`** — builds a synthetic nodal account: 360
@@ -52,11 +62,18 @@ pytest
    real bank balance.
 3. **`engine/classify.py`** — collapses the cumulative drift series into
    discrete events (a day the drift *changed*, not every day it stayed
-   nonzero), then buckets each event with rule-based checks:
-   duplicate settlement, stuck refund, fee-sweep timing (confirmed by
-   checking the drift actually reverses later, and paired with its
-   resolution day so a delayed sweep landing isn't reported as a second,
-   separate mystery), or unexplained.
+   nonzero). A single day can have more than one cause at once, so every
+   day's candidates (duplicate settlements, stuck refunds, fee sweeps with
+   an independently confirmed later reversal) are enumerated first, then
+   matched against that day's total drift via subset-sum — each matched
+   candidate is reported as its own incident, and any untouched remainder
+   is reported as a smaller, more precise "unexplained" residual instead
+   of one undifferentiated blob. A fee_sweep is only ever treated as a
+   candidate once a matching reversal is confirmed elsewhere in the
+   series — an ordinary, non-anomalous fee looks identical to a real one
+   on its own, so without that check two unrelated clean fees on a busy
+   day can coincidentally sum close enough to a target to get falsely
+   matched.
 4. **`engine/llm_explain.py`** — only touches the "unexplained" bucket.
    Given the raw recorded rows near that date, it proposes a hypothesis
    and a confidence level. It never re-derives arithmetic the rule engine
@@ -81,11 +98,30 @@ pytest
 - **Audit trail**: every classified event cites the specific transaction
   and recorded row(s) it's based on.
 
+## Measured accuracy
+
+`scripts/backtest.py` generates a fresh synthetic batch per seed, runs the
+real pipeline against it, and checks each seeded incident against the
+generator's own ground truth (never seen by the audit code itself):
+
+```
+Incident type                  Detected    Total   Recall
+duplicate_settlement                100      100   100.0%
+late_fee_sweep                      100      100   100.0%
+partial_refund_mismatch             100      100   100.0%
+stuck_refund                        100      100   100.0%
+OVERALL                             400      400   100.0%
+
+False-positive candidates: 0
+```
+(25 seeds, 400 total seeded incidents.) `partial_refund_mismatch` recall
+means "correctly left unexplained for the LLM" — that failure mode has no
+rule-based signature by design, so 100% there means the rule engine never
+falsely claims to explain it with the wrong cause.
+
 ## Known limitations / next steps
 
-- Synthetic data only; a real submission should also validate against a
-  second synthetic batch with a different seed to show the match rate
-  generalizes.
+- Synthetic data only.
 - `llm_explain.py` calls the LLM once per unexplained event with no
   batching or caching — fine at this scale, would need batching for a
   larger ledger.

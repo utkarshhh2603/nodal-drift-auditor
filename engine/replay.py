@@ -14,12 +14,13 @@ import pandas as pd
 DATA_DIR = Path(__file__).parent.parent / "data" / "generated"
 
 
-def load_tables():
-    transactions = pd.read_csv(DATA_DIR / "transactions.csv", parse_dates=["payment_date"])
-    settlements = pd.read_csv(DATA_DIR / "settlements.csv", parse_dates=["settlement_date"])
-    refunds = pd.read_csv(DATA_DIR / "refunds.csv", parse_dates=["refund_date"])
-    fee_sweeps = pd.read_csv(DATA_DIR / "fee_sweeps.csv", parse_dates=["swept_date"])
-    nodal_ledger = pd.read_csv(DATA_DIR / "nodal_ledger.csv", parse_dates=["date"])
+def load_tables(data_dir=None):
+    data_dir = Path(data_dir) if data_dir else DATA_DIR
+    transactions = pd.read_csv(data_dir / "transactions.csv", parse_dates=["payment_date"])
+    settlements = pd.read_csv(data_dir / "settlements.csv", parse_dates=["settlement_date"])
+    refunds = pd.read_csv(data_dir / "refunds.csv", parse_dates=["refund_date"])
+    fee_sweeps = pd.read_csv(data_dir / "fee_sweeps.csv", parse_dates=["swept_date"])
+    nodal_ledger = pd.read_csv(data_dir / "nodal_ledger.csv", parse_dates=["date"])
     return transactions, settlements, refunds, fee_sweeps, nodal_ledger
 
 
@@ -41,8 +42,8 @@ def compute_expected_balance(transactions, settlements, refunds, fee_sweeps, dat
     return pd.DataFrame(rows)
 
 
-def run():
-    transactions, settlements, refunds, fee_sweeps, nodal_ledger = load_tables()
+def run(data_dir=None):
+    transactions, settlements, refunds, fee_sweeps, nodal_ledger = load_tables(data_dir)
     dates = nodal_ledger["date"].tolist()
     expected = compute_expected_balance(transactions, settlements, refunds, fee_sweeps, dates)
     merged = expected.merge(nodal_ledger, on="date")

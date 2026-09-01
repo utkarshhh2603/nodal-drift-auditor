@@ -21,7 +21,8 @@ import random
 from datetime import date, timedelta
 from pathlib import Path
 
-random.seed(42)
+DEFAULT_SEED = 42
+_rng = random.Random(DEFAULT_SEED)
 
 START_DATE = date(2026, 8, 1)
 NUM_DAYS = 90
@@ -66,17 +67,17 @@ def assign_noise_indices():
         "NUM_DAYS too small for the configured noise volume/spacing"
 
     noise_types = [t for t, count in NOISE_COUNTS.items() for _ in range(count)]
-    random.shuffle(noise_types)
+    _rng.shuffle(noise_types)
 
     assignment = {}
     for day_offset, noise_type in zip(noise_days, noise_types):
-        slot = random.randrange(TXNS_PER_DAY)
+        slot = _rng.randrange(TXNS_PER_DAY)
         assignment[day_offset * TXNS_PER_DAY + slot] = noise_type
     return assignment
 
 
 def gen_normal(idx, payment_date, amount, tables, true_events):
-    roll = random.random()
+    roll = _rng.random()
     if roll < 0.10:
         _full_refund(idx, payment_date, amount, tables, true_events, status="processed")
     elif roll < 0.20:
@@ -183,21 +184,40 @@ NOISE_GENERATORS = {
 }
 
 
-def main():
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    noise_assignment = assign_noise_indices()
+def generate(seed=DEFAULT_SEED, out_dir=None, write_csvs=True, verbose=True):
+    """Builds one synthetic batch and returns (out_dir, ground_truth).
 
+    ground_truth is a list of dicts - {txn_id, onset_date, type} - one per
+    seeded incident. It's not used by the audit pipeline itself (a real
+    auditor doesn't get an answer key); it exists so scripts/backtest.py
+    can score engine/classify.py's output against what was actually seeded,
+    across many seeds, to get a measured precision/recall rather than a
+    single anecdotal demo run.
+    """
+    global _rng
+    _rng = random.Random(seed)
+    out_dir = Path(out_dir) if out_dir else OUT_DIR
+    if write_csvs:
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+    noise_assignment = assign_noise_indices()
     tables = {"transactions": [], "settlements": [], "refunds": [], "fee_sweeps": []}
     true_events = []
+    ground_truth = []
 
     idx = 0
     for day_offset in range(NUM_DAYS):
         payment_date = START_DATE + timedelta(days=day_offset)
         for _ in range(TXNS_PER_DAY):
-            amount = r2(random.uniform(500, 45000))
+            amount = r2(_rng.uniform(500, 45000))
             noise_type = noise_assignment.get(idx)
             if noise_type:
                 NOISE_GENERATORS[noise_type](idx, payment_date, amount, tables, true_events)
+                ground_truth.append({
+                    "txn_id": f"T{idx:04d}",
+                    "onset_date": payment_date + timedelta(days=SETTLEMENT_LAG_DAYS),
+                    "type": noise_type,
+                })
             else:
                 gen_normal(idx, payment_date, amount, tables, true_events)
             idx += 1
@@ -218,18 +238,21 @@ def main():
         nodal_ledger.append([d, running])
         d += timedelta(days=1)
 
-    _write_csv(OUT_DIR / "transactions.csv", ["txn_id", "amount", "payment_date", "status"], tables["transactions"])
-    _write_csv(OUT_DIR / "settlements.csv", ["settlement_id", "txn_id", "amount", "settlement_date", "status"], tables["settlements"])
-    _write_csv(OUT_DIR / "refunds.csv", ["refund_id", "txn_id", "amount", "refund_date", "status"], tables["refunds"])
-    _write_csv(OUT_DIR / "fee_sweeps.csv", ["fee_id", "txn_id", "amount", "swept_date"], tables["fee_sweeps"])
-    _write_csv(OUT_DIR / "nodal_ledger.csv", ["date", "actual_balance"], nodal_ledger)
+    if write_csvs:
+        _write_csv(out_dir / "transactions.csv", ["txn_id", "amount", "payment_date", "status"], tables["transactions"])
+        _write_csv(out_dir / "settlements.csv", ["settlement_id", "txn_id", "amount", "settlement_date", "status"], tables["settlements"])
+        _write_csv(out_dir / "refunds.csv", ["refund_id", "txn_id", "amount", "refund_date", "status"], tables["refunds"])
+        _write_csv(out_dir / "fee_sweeps.csv", ["fee_id", "txn_id", "amount", "swept_date"], tables["fee_sweeps"])
+        _write_csv(out_dir / "nodal_ledger.csv", ["date", "actual_balance"], nodal_ledger)
+    if write_csvs and verbose:
+        print(
+            f"Generated {idx} transactions ({sum(NOISE_COUNTS.values())} seeded incidents: "
+            + ", ".join(f"{k}={v}" for k, v in NOISE_COUNTS.items())
+            + f"), {len(tables['settlements'])} settlements, {len(tables['refunds'])} refunds, "
+            f"{len(tables['fee_sweeps'])} fee sweeps, {len(nodal_ledger)} ledger days -> {out_dir}"
+        )
 
-    print(
-        f"Generated {idx} transactions ({sum(NOISE_COUNTS.values())} seeded incidents: "
-        + ", ".join(f"{k}={v}" for k, v in NOISE_COUNTS.items())
-        + f"), {len(tables['settlements'])} settlements, {len(tables['refunds'])} refunds, "
-        f"{len(tables['fee_sweeps'])} fee sweeps, {len(nodal_ledger)} ledger days -> {OUT_DIR}"
-    )
+    return out_dir, ground_truth
 
 
 def _write_csv(path, header, rows):
@@ -240,4 +263,4 @@ def _write_csv(path, header, rows):
 
 
 if __name__ == "__main__":
-    main()
+    generate()

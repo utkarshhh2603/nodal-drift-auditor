@@ -44,3 +44,35 @@ def test_duplicate_settlement_detected():
     classified = classify_events(events, settlements, refunds, fee_sweeps, None)
     assert len(classified) == 1
     assert classified[0].bucket == "duplicate_settlement"
+
+
+def test_two_incidents_on_same_day_are_both_recovered():
+    # A duplicate settlement (T1, extra Rs.500) and a stuck refund (T2,
+    # Rs.300) both land on the same day, so the day's total drift (-800) is
+    # the sum of two unrelated causes. Magnitude-matching the whole day
+    # against a single candidate (the old approach) can't explain -800 with
+    # either candidate alone and falls back to one undifferentiated
+    # "unexplained" event - classify_events should instead decompose the
+    # day into both real causes.
+    d0, d1 = pd.Timestamp(2026, 1, 1), pd.Timestamp(2026, 1, 2)
+    settlements = pd.DataFrame([
+        {"settlement_id": "S1", "txn_id": "T1", "amount": 500.0, "settlement_date": d1, "status": "settled"},
+        {"settlement_id": "S1dup", "txn_id": "T1", "amount": 500.0, "settlement_date": d1, "status": "settled"},
+    ])
+    refunds = pd.DataFrame([
+        {"refund_id": "R2", "txn_id": "T2", "amount": 300.0, "refund_date": d1, "status": "issued"},
+    ])
+    fee_sweeps = pd.DataFrame(columns=["fee_id", "txn_id", "amount", "swept_date"])
+
+    replay_df = pd.DataFrame([
+        {"date": d0, "expected_balance": 2000.0, "actual_balance": 2000.0, "drift": 0.0},
+        {"date": d1, "expected_balance": 1200.0, "actual_balance": 2000.0, "drift": -800.0},
+    ])
+
+    events = find_events(replay_df)
+    classified = classify_events(events, settlements, refunds, fee_sweeps, None)
+
+    buckets = sorted(ev.bucket for ev in classified)
+    assert buckets == ["duplicate_settlement", "stuck_refund"]
+    assert all(ev.bucket != "unexplained" for ev in classified)
+    assert round(sum(ev.delta for ev in classified), 2) == -800.0
