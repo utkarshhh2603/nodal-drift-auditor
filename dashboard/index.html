@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nodal Drift Auditor — Razorpay AI Buildathon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0908;
+    --bg-elevated: #131110;
+    --bg-card: #17140f;
+    --text: #f4efe4;
+    --text-dim: #a89d89;
+    --text-faint: #6e6555;
+    --accent: #d9a94f;
+    --accent-strong: #f2c476;
+    --accent-soft: rgba(217, 169, 79, 0.12);
+    --accent-line: rgba(217, 169, 79, 0.35);
+    --ok: #8fb99a;
+    --ok-soft: rgba(143, 185, 154, 0.12);
+    --line: rgba(244, 239, 228, 0.09);
+    --line-strong: rgba(244, 239, 228, 0.18);
+    --radius: 14px;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.5;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection { background: var(--accent); color: #1a1508; }
+
+  a { color: inherit; text-decoration: none; }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 40px;
+  }
+
+  @media (max-width: 720px) {
+    .wrap { padding: 0 20px; }
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  /* ---------- nav ---------- */
+  .nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 22px 40px;
+    background: linear-gradient(to bottom, rgba(10,9,8,0.92), rgba(10,9,8,0));
+    backdrop-filter: blur(6px);
+  }
+  .nav-logo {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--text);
+  }
+  .nav-logo span { color: var(--accent); }
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 32px;
+  }
+  .nav-links a:not(.btn) {
+    font-size: 13px;
+    color: var(--text-dim);
+    transition: color 0.2s;
+  }
+  .nav-links a:not(.btn):hover { color: var(--text); }
+  @media (max-width: 720px) {
+    .nav { padding: 18px 20px; }
+    .nav-links a:not(.btn) { display: none; }
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 22px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+  .btn-solid {
+    background: var(--accent);
+    color: #1a1508;
+  }
+  .btn-solid:hover { background: var(--accent-strong); transform: translateY(-1px); }
+  .btn-ghost {
+    border-color: var(--line-strong);
+    color: var(--text);
+  }
+  .btn-ghost:hover { border-color: var(--accent-line); background: var(--accent-soft); }
+
+  /* ---------- hero ---------- */
+  .hero {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 140px 40px 80px;
+    overflow: hidden;
+  }
+  .hero-glow {
+    position: absolute;
+    inset: -20%;
+    z-index: 0;
+    background:
+      radial-gradient(ellipse 700px 500px at 15% 15%, rgba(217,169,79,0.16), transparent 60%),
+      radial-gradient(ellipse 600px 600px at 90% 30%, rgba(143,185,154,0.09), transparent 60%),
+      radial-gradient(ellipse 900px 700px at 50% 100%, rgba(217,169,79,0.07), transparent 60%);
+    animation: drift 22s ease-in-out infinite alternate;
+    pointer-events: none;
+  }
+  @keyframes drift {
+    from { transform: translate(0, 0) scale(1); }
+    to { transform: translate(-2%, 2%) scale(1.05); }
+  }
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    opacity: 0.05;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    mix-blend-mode: overlay;
+  }
+
+  .hero-content { position: relative; z-index: 2; max-width: 1180px; margin: 0 auto; width: 100%; }
+  .hero .eyebrow { margin-bottom: 22px; }
+  .hero h1 {
+    font-size: clamp(42px, 7vw, 84px);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.03;
+    max-width: 15ch;
+  }
+  .hero h1 em {
+    font-style: normal;
+    color: var(--accent);
+  }
+  .hero-sub {
+    margin-top: 26px;
+    font-size: 18px;
+    color: var(--text-dim);
+    max-width: 46ch;
+    line-height: 1.6;
+  }
+  .hero-stats {
+    margin-top: 40px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 28px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .hero-stats b { color: var(--text); font-weight: 600; }
+  .hero-ctas {
+    margin-top: 44px;
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .hero-foot {
+    position: absolute;
+    left: 40px; right: 40px; bottom: 32px;
+    z-index: 2;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-faint);
+    letter-spacing: 0.08em;
+  }
+  @media (max-width: 720px) {
+    .hero { padding: 120px 20px 70px; }
+    .hero-foot { left: 20px; right: 20px; }
+  }
+
+  /* ---------- section shell ---------- */
+  section { position: relative; padding: 100px 0; border-top: 1px solid var(--line); }
+  .section-head { margin-bottom: 56px; }
+  .section-head .eyebrow { margin-bottom: 16px; }
+  .section-head h2 {
+    font-size: clamp(30px, 4vw, 44px);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    max-width: 20ch;
+  }
+  .section-head p {
+    margin-top: 16px;
+    color: var(--text-dim);
+    max-width: 56ch;
+    font-size: 16px;
+  }
+
+  /* ---------- numbers ---------- */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .stat-tile {
+    background: var(--bg-card);
+    padding: 32px 28px;
+    transition: background 0.25s;
+  }
+  .stat-tile:hover { background: var(--bg-elevated); }
+  .stat-value {
+    font-family: var(--mono);
+    font-size: clamp(28px, 3vw, 38px);
+    font-weight: 600;
+    color: var(--accent-strong);
+    letter-spacing: -0.01em;
+  }
+  .stat-value.ok { color: var(--ok); }
+  .stat-label {
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  @media (max-width: 860px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 540px) { .stat-grid { grid-template-columns: 1fr; } }
+
+  /* ---------- incidents ---------- */
+  .incidents-layout {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+    min-height: 560px;
+  }
+  .incident-list {
+    background: var(--bg-card);
+    border-right: 1px solid var(--line);
+    max-height: 640px;
+    overflow-y: auto;
+  }
+  .incident-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--line);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .incident-row:last-child { border-bottom: none; }
+  .incident-row:hover { background: var(--accent-soft); }
+  .incident-row.active {
+    background: var(--accent-soft);
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+  .incident-row .idx {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-faint);
+    width: 22px;
+    flex-shrink: 0;
+  }
+  .incident-row .meta { flex: 1; min-width: 0; }
+  .incident-row .bucket {
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .incident-row .date {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-faint);
+    margin-top: 2px;
+  }
+  .incident-row .amt {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+  .incident-row .amt.pos { color: var(--ok); }
+
+  .incident-detail { padding: 40px; }
+  .detail-eyebrow { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+  .badge {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--accent-line);
+    color: var(--accent);
+  }
+  .badge.ok { border-color: rgba(143,185,154,0.4); color: var(--ok); }
+  .detail-title {
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .detail-sub {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 8px;
+  }
+  .detail-amt {
+    font-family: var(--mono);
+    font-size: 42px;
+    font-weight: 600;
+    margin-top: 24px;
+    color: var(--accent-strong);
+  }
+  .detail-amt.pos { color: var(--ok); }
+  .detail-block { margin-top: 32px; }
+  .detail-block .eyebrow { margin-bottom: 10px; display: block; }
+  .detail-block p { font-size: 15px; line-height: 1.65; color: var(--text); max-width: 62ch; }
+  .detail-block.fix p { color: var(--text-dim); }
+
+  @media (max-width: 860px) {
+    .incidents-layout { grid-template-columns: 1fr; }
+    .incident-list { border-right: none; border-bottom: 1px solid var(--line); max-height: 320px; }
+    .incident-detail { padding: 28px 24px; }
+  }
+
+  /* ---------- pipeline ---------- */
+  .pipeline-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 28px;
+  }
+  .pipeline-step .num {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--accent);
+    margin-bottom: 14px;
+  }
+  .pipeline-step h3 { font-size: 18px; font-weight: 600; margin-bottom: 10px; }
+  .pipeline-step p { font-size: 14px; color: var(--text-dim); line-height: 1.6; }
+  @media (max-width: 860px) { .pipeline-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 540px) { .pipeline-grid { grid-template-columns: 1fr; } }
+
+  /* ---------- accuracy ---------- */
+  .accuracy-layout {
+    display: grid;
+    grid-template-columns: 1fr 1.3fr;
+    gap: 48px;
+    align-items: center;
+  }
+  .accuracy-headline .big-num {
+    font-family: var(--mono);
+    font-size: clamp(56px, 8vw, 96px);
+    font-weight: 700;
+    color: var(--ok);
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  .accuracy-headline p {
+    margin-top: 18px;
+    color: var(--text-dim);
+    font-size: 15px;
+    max-width: 40ch;
+  }
+  table.recall-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+  table.recall-table th {
+    text-align: left;
+    font-weight: 500;
+    color: var(--text-faint);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-size: 11px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line-strong);
+  }
+  table.recall-table td {
+    padding: 14px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  table.recall-table td:last-child, table.recall-table th:last-child { text-align: right; color: var(--ok); }
+  @media (max-width: 860px) { .accuracy-layout { grid-template-columns: 1fr; } }
+
+  /* ---------- footer ---------- */
+  footer {
+    border-top: 1px solid var(--line);
+    padding: 90px 0 50px;
+  }
+  footer h2 {
+    font-size: clamp(30px, 5vw, 56px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    max-width: 16ch;
+  }
+  footer h2 em { font-style: normal; color: var(--accent); }
+  .footer-ctas { margin-top: 36px; display: flex; gap: 14px; flex-wrap: wrap; }
+  .footer-bottom {
+    margin-top: 80px;
+    padding-top: 26px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-faint);
+  }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: var(--bg-card); }
+  ::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 6px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--accent-line); }
+</style>
+</head>
+<body>
+
+<div class="grain"></div>
+
+<header class="nav">
+  <div class="nav-logo">/nodal-drift-auditor<span>.</span></div>
+  <div class="nav-links">
+    <a href="#numbers">Numbers</a>
+    <a href="#incidents">Incidents</a>
+    <a href="#accuracy">Accuracy</a>
+    <a href="#" class="btn btn-solid" id="github-link-nav">GitHub repo</a>
+  </div>
+</header>
+
+<main>
+
+  <section class="hero" id="top">
+    <div class="hero-glow"></div>
+    <div class="hero-content">
+      <div class="eyebrow">Razorpay AI Buildathon · Track 04 — AI Finance Controller</div>
+      <h1>Your nodal account.<br><em>Prove it balances.</em></h1>
+      <p class="hero-sub">
+        An agent that replays a payment aggregator's recorded books against
+        the real bank statement, catches every drift, and explains why —
+        in ₹, same-day, with an honest list of what it can't explain.
+      </p>
+      <div class="hero-stats" id="hero-stats"></div>
+      <div class="hero-ctas">
+        <a href="#incidents" class="btn btn-solid">View the audit trail</a>
+        <a href="#" class="btn btn-ghost" id="github-link-hero">GitHub repo →</a>
+      </div>
+    </div>
+    <div class="hero-foot">
+      <span>SCROLL ↓</span>
+      <span id="clock"></span>
+    </div>
+  </section>
+
+  <section id="numbers">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="eyebrow">The numbers</div>
+        <h2>One batch. Every rupee tracked.</h2>
+        <p>Replayed from the recorded books, diffed against the real bank ledger — nothing here is estimated.</p>
+      </div>
+      <div class="stat-grid" id="stat-grid"></div>
+    </div>
+  </section>
+
+  <section id="incidents">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="eyebrow">The exception list</div>
+        <h2>Every drift, explained.</h2>
+        <p>Click an incident. Rule-classified ones cite the exact transaction and recorded row; the rest are handed to an LLM, honestly, not silently guessed at.</p>
+      </div>
+      <div class="incidents-layout">
+        <div class="incident-list" id="incident-list"></div>
+        <div class="incident-detail" id="incident-detail"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="eyebrow">How it works</div>
+        <h2>Rules first. LLM only for the residual.</h2>
+      </div>
+      <div class="pipeline-grid">
+        <div class="pipeline-step">
+          <div class="num">01</div>
+          <h3>Replay</h3>
+          <p>Recomputes the expected daily balance purely from the recorded books — naive on purpose, so it drifts exactly where the records do.</p>
+        </div>
+        <div class="pipeline-step">
+          <div class="num">02</div>
+          <h3>Decompose</h3>
+          <p>Enumerates every candidate cause per day and subset-sums them against the total drift — multiple incidents on one day are each reported separately, not blurred together.</p>
+        </div>
+        <div class="pipeline-step">
+          <div class="num">03</div>
+          <h3>Classify</h3>
+          <p>Duplicate settlement, stuck refund, or fee-sweep timing — confirmed only once a matching reversal actually shows up later in the series.</p>
+        </div>
+        <div class="pipeline-step">
+          <div class="num">04</div>
+          <h3>LLM review</h3>
+          <p>Only touches what the rules can't explain. It never re-derives arithmetic the rule engine already got right.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="accuracy">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="eyebrow">Backtested, not anecdotal</div>
+        <h2>Scored against the generator's own ground truth.</h2>
+        <p>A fresh synthetic batch per seed, the real pipeline run against it, every seeded incident checked for detection and correct bucketing.</p>
+      </div>
+      <div class="accuracy-layout">
+        <div class="accuracy-headline">
+          <div class="big-num" id="recall-num">—</div>
+          <p id="recall-sub">recall across seeded incidents, multiple seeds, zero false positives.</p>
+        </div>
+        <table class="recall-table">
+          <thead>
+            <tr><th>Incident type</th><th>Detected</th><th>Recall</th></tr>
+          </thead>
+          <tbody id="recall-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <h2>Every rupee, <em>accounted for.</em></h2>
+    <div class="footer-ctas">
+      <a href="#" class="btn btn-solid" id="github-link-footer">View the repo</a>
+      <a href="#top" class="btn btn-ghost">Back to top ↑</a>
+    </div>
+    <div class="footer-bottom">
+      <span>Nodal Account Drift Auditor</span>
+      <span>Razorpay AI Buildathon · Track 04, AI Finance Controller</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+const DATA = {
+  "github_url": "#",
+  "summary": {
+    "transactions_audited": 360,
+    "total_days": 96,
+    "drift_days": 92,
+    "incident_count": 16,
+    "value_at_risk": 206232.32,
+    "self_resolving_value": 1844.56,
+    "rule_classified": 12,
+    "llm_classified": 4
+  },
+  "incidents": [
+    {
+      "date": "2026-08-05",
+      "bucket": "stuck_refund",
+      "bucket_label": "Stuck refund",
+      "delta": -12380.51,
+      "txn_id": "T0013",
+      "confidence": "high",
+      "detail": "T0013: refund recorded as 'issued' on 2026-08-05 but never actually debited from the bank - likely a silently failed refund.",
+      "fix": "Re-trigger the refund through the payment processor and confirm the debit actually posts to the bank before marking it processed."
+    },
+    {
+      "date": "2026-08-10",
+      "bucket": "fee_sweep_timing",
+      "bucket_label": "Fee sweep timing",
+      "delta": -51.93,
+      "txn_id": "T0032",
+      "confidence": "high",
+      "detail": "T0032: fee recorded as swept on 2026-08-10, but the bank debit lagged until 2026-08-13 - an operational sweep delay, not a real loss.",
+      "fix": "No action needed \u2014 the balance recovers automatically once the delayed sweep posts. Flagged for visibility only."
+    },
+    {
+      "date": "2026-08-15",
+      "bucket": "stuck_refund",
+      "bucket_label": "Stuck refund",
+      "delta": -14184.38,
+      "txn_id": "T0053",
+      "confidence": "high",
+      "detail": "T0053: refund recorded as 'issued' on 2026-08-15 but never actually debited from the bank - likely a silently failed refund.",
+      "fix": "Re-trigger the refund through the payment processor and confirm the debit actually posts to the bank before marking it processed."
+    },
+    {
+      "date": "2026-08-20",
+      "bucket": "stuck_refund",
+      "bucket_label": "Stuck refund",
+      "delta": -35415.56,
+      "txn_id": "T0075",
+      "confidence": "high",
+      "detail": "T0075: refund recorded as 'issued' on 2026-08-20 but never actually debited from the bank - likely a silently failed refund.",
+      "fix": "Re-trigger the refund through the payment processor and confirm the debit actually posts to the bank before marking it processed."
+    },
+    {
+      "date": "2026-08-25",
+      "bucket": "unexplained",
+      "bucket_label": "Unexplained",
+      "delta": -6945.72,
+      "txn_id": "",
+      "confidence": "low",
+      "detail": "No recorded event on 2026-08-25 fully explains a drift of ~Rs.6945.72.",
+      "fix": "Escalate to a human reviewer. The hypothesis below (LLM-generated when ANTHROPIC_API_KEY is set) is a starting point, not a resolution."
+    },
+    {
+      "date": "2026-08-30",
+      "bucket": "fee_sweep_timing",
+      "bucket_label": "Fee sweep timing",
+      "delta": -679.16,
+      "txn_id": "T0115",
+      "confidence": "high",
+      "detail": "T0115: fee recorded as swept on 2026-08-30, but the bank debit lagged until 2026-09-02 - an operational sweep delay, not a real loss.",
+      "fix": "No action needed \u2014 the balance recovers automatically once the delayed sweep posts. Flagged for visibility only."
+    },
+    {
+      "date": "2026-09-04",
+      "bucket": "unexplained",
+      "bucket_label": "Unexplained",
+      "delta": -7739.65,
+      "txn_id": "",
+      "confidence": "low",
+      "detail": "No recorded event on 2026-09-04 fully explains a drift of ~Rs.7739.65.",
+      "fix": "Escalate to a human reviewer. The hypothesis below (LLM-generated when ANTHROPIC_API_KEY is set) is a starting point, not a resolution."
+    },
+    {
+      "date": "2026-09-09",
+      "bucket": "fee_sweep_timing",
+      "bucket_label": "Fee sweep timing",
+      "delta": -794.46,
+      "txn_id": "T0152",
+      "confidence": "high",
+      "detail": "T0152: fee recorded as swept on 2026-09-09, but the bank debit lagged until 2026-09-12 - an operational sweep delay, not a real loss.",
+      "fix": "No action needed \u2014 the balance recovers automatically once the delayed sweep posts. Flagged for visibility only."
+    },
+    {
+      "date": "2026-09-14",
+      "bucket": "duplicate_settlement",
+      "bucket_label": "Duplicate settlement",
+      "delta": -17288.38,
+      "txn_id": "T0173",
+      "confidence": "high",
+      "detail": "T0173: 2 'settled' rows recorded on 2026-09-14, bank shows only one payout - likely a non-idempotent retry.",
+      "fix": "Cancel the duplicate settlement instruction and reconcile the nodal ledger against the single confirmed bank payout."
+    },
+    {
+      "date": "2026-09-19",
+      "bucket": "duplicate_settlement",
+      "bucket_label": "Duplicate settlement",
+      "delta": -22968.86,
+      "txn_id": "T0195",
+      "confidence": "high",
+      "detail": "T0195: 2 'settled' rows recorded on 2026-09-19, bank shows only one payout - likely a non-idempotent retry.",
+      "fix": "Cancel the duplicate settlement instruction and reconcile the nodal ledger against the single confirmed bank payout."
+    },
+    {
+      "date": "2026-09-24",
+      "bucket": "unexplained",
+      "bucket_label": "Unexplained",
+      "delta": -16067.38,
+      "txn_id": "",
+      "confidence": "low",
+      "detail": "No recorded event on 2026-09-24 fully explains a drift of ~Rs.16067.38.",
+      "fix": "Escalate to a human reviewer. The hypothesis below (LLM-generated when ANTHROPIC_API_KEY is set) is a starting point, not a resolution."
+    },
+    {
+      "date": "2026-09-29",
+      "bucket": "unexplained",
+      "bucket_label": "Unexplained",
+      "delta": -13611.86,
+      "txn_id": "",
+      "confidence": "low",
+      "detail": "No recorded event on 2026-09-29 fully explains a drift of ~Rs.13611.86.",
+      "fix": "Escalate to a human reviewer. The hypothesis below (LLM-generated when ANTHROPIC_API_KEY is set) is a starting point, not a resolution."
+    },
+    {
+      "date": "2026-10-04",
+      "bucket": "stuck_refund",
+      "bucket_label": "Stuck refund",
+      "delta": -44995.9,
+      "txn_id": "T0253",
+      "confidence": "high",
+      "detail": "T0253: refund recorded as 'issued' on 2026-10-04 but never actually debited from the bank - likely a silently failed refund.",
+      "fix": "Re-trigger the refund through the payment processor and confirm the debit actually posts to the bank before marking it processed."
+    },
+    {
+      "date": "2026-10-09",
+      "bucket": "fee_sweep_timing",
+      "bucket_label": "Fee sweep timing",
+      "delta": -319.01,
+      "txn_id": "T0273",
+      "confidence": "high",
+      "detail": "T0273: fee recorded as swept on 2026-10-09, but the bank debit lagged until 2026-10-12 - an operational sweep delay, not a real loss.",
+      "fix": "No action needed \u2014 the balance recovers automatically once the delayed sweep posts. Flagged for visibility only."
+    },
+    {
+      "date": "2026-10-14",
+      "bucket": "duplicate_settlement",
+      "bucket_label": "Duplicate settlement",
+      "delta": -4223.58,
+      "txn_id": "T0294",
+      "confidence": "high",
+      "detail": "T0294: 2 'settled' rows recorded on 2026-10-14, bank shows only one payout - likely a non-idempotent retry.",
+      "fix": "Cancel the duplicate settlement instruction and reconcile the nodal ledger against the single confirmed bank payout."
+    },
+    {
+      "date": "2026-10-19",
+      "bucket": "duplicate_settlement",
+      "bucket_label": "Duplicate settlement",
+      "delta": -10410.54,
+      "txn_id": "T0312",
+      "confidence": "high",
+      "detail": "T0312: 2 'settled' rows recorded on 2026-10-19, bank shows only one payout - likely a non-idempotent retry.",
+      "fix": "Cancel the duplicate settlement instruction and reconcile the nodal ledger against the single confirmed bank payout."
+    }
+  ],
+  "backtest": {
+    "seeds": 10,
+    "total_seeded": 160,
+    "false_positives": 0,
+    "overall_recall": 100.0,
+    "by_type": [
+      {
+        "type": "duplicate_settlement",
+        "detected": 40,
+        "total": 40,
+        "recall": 100.0
+      },
+      {
+        "type": "late_fee_sweep",
+        "detected": 40,
+        "total": 40,
+        "recall": 100.0
+      },
+      {
+        "type": "partial_refund_mismatch",
+        "detected": 40,
+        "total": 40,
+        "recall": 100.0
+      },
+      {
+        "type": "stuck_refund",
+        "detected": 40,
+        "total": 40,
+        "recall": 100.0
+      }
+    ]
+  }
+};
+
+const fmtRs = (n) => 'Rs.' + Math.abs(n).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+function renderHero() {
+  const s = DATA.summary;
+  document.getElementById('hero-stats').innerHTML = `
+    <span>/ <b>${s.transactions_audited}</b> transactions audited</span>
+    <span>/ <b>${s.incident_count}</b> incidents found</span>
+    <span>/ <b>${DATA.backtest.overall_recall}%</b> backtested recall</span>
+  `;
+}
+
+function renderStats() {
+  const s = DATA.summary;
+  const tiles = [
+    [s.transactions_audited, 'Transactions audited', ''],
+    [s.incident_count, 'Incidents detected', ''],
+    [fmtRs(s.value_at_risk), 'Value at risk (action needed)', ''],
+    [fmtRs(s.self_resolving_value), 'Self-resolving timing noise', 'ok'],
+    [`${s.rule_classified}/${s.incident_count}`, 'Explained same-day by rules', ''],
+    [s.llm_classified, 'Handed to LLM review', ''],
+  ];
+  document.getElementById('stat-grid').innerHTML = tiles.map(([v, l, cls]) => `
+    <div class="stat-tile">
+      <div class="stat-value ${cls}">${v}</div>
+      <div class="stat-label">${l}</div>
+    </div>
+  `).join('');
+}
+
+let activeIdx = 0;
+
+function renderIncidentList() {
+  const list = document.getElementById('incident-list');
+  list.innerHTML = DATA.incidents.map((inc, i) => `
+    <div class="incident-row ${i === activeIdx ? 'active' : ''}" data-idx="${i}">
+      <span class="idx">${String(i + 1).padStart(2, '0')}</span>
+      <span class="meta">
+        <span class="bucket">${inc.bucket_label}</span>
+        <span class="date">${inc.date}${inc.txn_id ? ' · ' + inc.txn_id : ''}</span>
+      </span>
+      <span class="amt ${inc.delta > 0 ? 'pos' : ''}">${inc.delta > 0 ? '+' : '-'}${fmtRs(inc.delta)}</span>
+    </div>
+  `).join('');
+  list.querySelectorAll('.incident-row').forEach(row => {
+    row.addEventListener('click', () => {
+      activeIdx = parseInt(row.dataset.idx, 10);
+      renderIncidentList();
+      renderIncidentDetail();
+    });
+  });
+}
+
+function renderIncidentDetail() {
+  const inc = DATA.incidents[activeIdx];
+  const isOk = inc.bucket === 'fee_sweep_timing' || inc.delta > 0;
+  document.getElementById('incident-detail').innerHTML = `
+    <div class="detail-eyebrow">
+      <span class="eyebrow">Incident ${String(activeIdx + 1).padStart(2, '0')}</span>
+      <span class="badge ${isOk ? 'ok' : ''}">${inc.confidence}</span>
+    </div>
+    <div class="detail-title">${inc.bucket_label}</div>
+    <div class="detail-sub">${inc.date}${inc.txn_id ? ' · ' + inc.txn_id : ' · transaction not individually identified'}</div>
+    <div class="detail-amt ${inc.delta > 0 ? 'pos' : ''}">${inc.delta > 0 ? '+' : '-'}${fmtRs(inc.delta)}</div>
+    <div class="detail-block">
+      <span class="eyebrow">What happened</span>
+      <p>${inc.detail}</p>
+    </div>
+    <div class="detail-block fix">
+      <span class="eyebrow">The fix</span>
+      <p>${inc.fix}</p>
+    </div>
+  `;
+}
+
+function renderAccuracy() {
+  const b = DATA.backtest;
+  document.getElementById('recall-num').textContent = b.overall_recall + '%';
+  document.getElementById('recall-sub').textContent =
+    `recall across ${b.total_seeded} seeded incidents over ${b.seeds} seeds, ${b.false_positives} false positives.`;
+  document.getElementById('recall-body').innerHTML = b.by_type.map(row => `
+    <tr>
+      <td>${row.type.replace(/_/g, ' ')}</td>
+      <td>${row.detected}/${row.total}</td>
+      <td>${row.recall}%</td>
+    </tr>
+  `).join('');
+}
+
+function renderClock() {
+  const el = document.getElementById('clock');
+  const tick = () => {
+    const now = new Date();
+    el.textContent = now.toTimeString().slice(0, 8);
+  };
+  tick();
+  setInterval(tick, 1000);
+}
+
+function wireGithubLinks() {
+  const url = DATA.github_url || '#';
+  ['github-link-nav', 'github-link-hero', 'github-link-footer'].forEach(id => {
+    const el = document.getElementById(id);
+    if (url !== '#') { el.href = url; el.target = '_blank'; el.rel = 'noopener'; }
+  });
+}
+
+renderHero();
+renderStats();
+renderIncidentList();
+renderIncidentDetail();
+renderAccuracy();
+renderClock();
+wireGithubLinks();
+</script>
+
+</body>
+</html>

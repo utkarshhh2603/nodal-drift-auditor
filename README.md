@@ -45,6 +45,20 @@ python scripts/backtest.py --seeds 25
 Current result: **100% recall, 0 false positives across 400 seeded
 incidents over 25 seeds** — see [Measured accuracy](#measured-accuracy).
 
+Build the dashboard (regenerates `dashboard/index.html` from the current
+`data/generated/` + a fresh backtest run — re-run this after regenerating
+data or changing `engine/*.py`):
+
+```bash
+python dashboard/build.py --repo-url https://github.com/<you>/nodal-drift-auditor
+```
+
+Then open `dashboard/index.html` directly, or serve it:
+
+```bash
+python -m http.server 8000 --directory dashboard
+```
+
 ## How it works
 
 1. **`data/generate_data.py`** — builds a synthetic nodal account: 360
@@ -119,11 +133,22 @@ means "correctly left unexplained for the LLM" — that failure mode has no
 rule-based signature by design, so 100% there means the rule engine never
 falsely claims to explain it with the wrong cause.
 
+## Dashboard
+
+`dashboard/index.html` (built by `dashboard/build.py` from `dashboard/template.html`
++ the live pipeline output) is a self-contained, static one-page site: hero
+stats, a clickable exception list with a live detail panel per incident,
+the pipeline explained in four steps, and the backtested recall table.
+No build tooling required — it's plain HTML/CSS/JS with the data embedded
+as JSON at build time. Regenerate it any time the underlying data or
+classification logic changes; the committed `index.html` is a snapshot,
+not a live view.
+
 ## Known limitations / next steps
 
 - Synthetic data only.
 - `llm_explain.py` calls the LLM once per unexplained event with no
   batching or caching — fine at this scale, would need batching for a
   larger ledger.
-- No UI yet — `report.csv` plus the CLI output is enough for the pitch
-  video walkthrough; a minimal dashboard is a reasonable stretch goal.
+- `dashboard/index.html` is a static snapshot of one pipeline run — it
+  doesn't re-run the audit live in the browser.
