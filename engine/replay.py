@@ -1,11 +1,11 @@
 """
 Reconstructs the *expected* nodal account balance, per day, purely from the
-recorded books (transactions/settlements/refunds/fee_sweeps) - i.e. what
-finance ops's own records say should have happened. This is deliberately
-naive: it trusts every settlement row with status "settled" and every
-refund row regardless of status, the way a records-only view would. That
-naivety is what lets it diverge from the real bank balance in exactly the
-cases the auditor is meant to catch.
+recorded books (transactions/settlements/refunds/fee_sweeps/chargebacks) -
+i.e. what finance ops's own records say should have happened. This is
+deliberately naive: it trusts every settlement row with status "settled"
+and every refund/chargeback row regardless of status, the way a
+records-only view would. That naivety is what lets it diverge from the
+real bank balance in exactly the cases the auditor is meant to catch.
 """
 from pathlib import Path
 
@@ -20,16 +20,18 @@ def load_tables(data_dir=None):
     settlements = pd.read_csv(data_dir / "settlements.csv", parse_dates=["settlement_date"])
     refunds = pd.read_csv(data_dir / "refunds.csv", parse_dates=["refund_date"])
     fee_sweeps = pd.read_csv(data_dir / "fee_sweeps.csv", parse_dates=["swept_date"])
+    chargebacks = pd.read_csv(data_dir / "chargebacks.csv", parse_dates=["chargeback_date"])
     nodal_ledger = pd.read_csv(data_dir / "nodal_ledger.csv", parse_dates=["date"])
-    return transactions, settlements, refunds, fee_sweeps, nodal_ledger
+    return transactions, settlements, refunds, fee_sweeps, chargebacks, nodal_ledger
 
 
-def compute_expected_balance(transactions, settlements, refunds, fee_sweeps, dates):
+def compute_expected_balance(transactions, settlements, refunds, fee_sweeps, chargebacks, dates):
     """Returns a DataFrame [date, expected_balance] for the given date index."""
     inflow = transactions.groupby("payment_date")["amount"].sum()
     settled_out = settlements.loc[settlements["status"] == "settled"].groupby("settlement_date")["amount"].sum()
     fee_out = fee_sweeps.groupby("swept_date")["amount"].sum()
     refund_out = refunds.groupby("refund_date")["amount"].sum()
+    chargeback_out = chargebacks.groupby("chargeback_date")["amount"].sum()
 
     running = 0.0
     rows = []
@@ -38,14 +40,15 @@ def compute_expected_balance(transactions, settlements, refunds, fee_sweeps, dat
         running -= settled_out.get(d, 0.0)
         running -= fee_out.get(d, 0.0)
         running -= refund_out.get(d, 0.0)
+        running -= chargeback_out.get(d, 0.0)
         rows.append({"date": d, "expected_balance": round(running, 2)})
     return pd.DataFrame(rows)
 
 
 def run(data_dir=None):
-    transactions, settlements, refunds, fee_sweeps, nodal_ledger = load_tables(data_dir)
+    transactions, settlements, refunds, fee_sweeps, chargebacks, nodal_ledger = load_tables(data_dir)
     dates = nodal_ledger["date"].tolist()
-    expected = compute_expected_balance(transactions, settlements, refunds, fee_sweeps, dates)
+    expected = compute_expected_balance(transactions, settlements, refunds, fee_sweeps, chargebacks, dates)
     merged = expected.merge(nodal_ledger, on="date")
     merged["drift"] = (merged["expected_balance"] - merged["actual_balance"]).round(2)
     return merged

@@ -60,7 +60,7 @@ def _amounts_close(a, b, tol=1.0):
     return abs(a - b) <= tol
 
 
-def classify_events(events, settlements, refunds, fee_sweeps, drift_by_date):
+def classify_events(events, settlements, refunds, fee_sweeps, chargebacks):
     results = []
     # Maps a reversal event's date -> explanatory detail, so the day a
     # delayed fee sweep finally lands isn't reported as a second, separate
@@ -78,7 +78,7 @@ def classify_events(events, settlements, refunds, fee_sweeps, drift_by_date):
             continue
 
         sign = -1 if delta < 0 else 1
-        candidates = _gather_candidates(d, delta, sign, settlements, refunds, fee_sweeps, events)
+        candidates = _gather_candidates(d, delta, sign, settlements, refunds, fee_sweeps, chargebacks, events)
         chosen = _best_subset(candidates, abs(delta))
 
         if not chosen:
@@ -86,7 +86,8 @@ def classify_events(events, settlements, refunds, fee_sweeps, drift_by_date):
                 d, delta, "unexplained", "low",
                 f"On {d.date()}, the money in the account doesn't match what the records say it "
                 f"should (off by about Rs.{abs(delta):,.2f}) - and none of the usual explanations "
-                f"(a duplicate payout, a failed refund, a late fee) account for it.",
+                f"(a duplicate payout, a failed refund, a late fee, a duplicate chargeback) "
+                f"account for it.",
                 suggested_fix=NO_AUTO_FIX,
             ))
             continue
@@ -116,7 +117,7 @@ def classify_events(events, settlements, refunds, fee_sweeps, drift_by_date):
     return results
 
 
-def _gather_candidates(d, delta, sign, settlements, refunds, fee_sweeps, events):
+def _gather_candidates(d, delta, sign, settlements, refunds, fee_sweeps, chargebacks, events):
     candidates = []
 
     # Duplicate settlement: >1 "settled" row for the same txn on this day.
@@ -179,6 +180,29 @@ def _gather_candidates(d, delta, sign, settlements, refunds, fee_sweeps, events)
             reversal_date=reversal["date"],
             suggested_fix="Nothing to do - the books already balanced themselves out once the "
                 f"late payment came through on {reversal['date'].date()}.",
+        ))
+
+    # Duplicate chargeback: >1 row recorded for the same disputed
+    # transaction on this day. Same logic as duplicate settlement - a
+    # genuine second row only exists here because of a real logging
+    # mistake, so it's inherently a real anomaly signal, not something
+    # that needs a reversal check the way an ordinary fee does.
+    day_chargebacks = chargebacks[chargebacks["chargeback_date"] == d]
+    cb_dup_groups = day_chargebacks.groupby("txn_id").size()
+    for txn_id in cb_dup_groups[cb_dup_groups > 1].index:
+        rows = day_chargebacks[day_chargebacks["txn_id"] == txn_id]
+        extra_amount = round(rows["amount"].iloc[0] * (len(rows) - 1), 2)
+        original_id = rows["chargeback_id"].iloc[0]
+        duplicate_ids = ", ".join(rows["chargeback_id"].iloc[1:])
+        candidates.append(Candidate(
+            "chargeback_duplicate", extra_amount,
+            f"A chargeback dispute for {txn_id} was logged twice on {d.date()}, but the bank "
+            f"only actually pulled the disputed money out of the account once - most likely "
+            f"the card network's dispute notice got processed twice.",
+            txn_id=txn_id,
+            suggested_fix=f"Delete the duplicate chargeback entry ({duplicate_ids}) from the "
+                f"records, keeping only {original_id}. First confirm with the bank statement "
+                f"that the disputed amount was only pulled once.",
         ))
 
     return candidates

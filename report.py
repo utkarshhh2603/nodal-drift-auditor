@@ -20,20 +20,20 @@ OUT_PATH = Path(__file__).parent / "report.csv"
 # "fee_sweep_timing_resolved" events are the same incident as the
 # fee_sweep_timing event that flagged them, not a second incident, so
 # they're excluded from the incident count and value totals below.
-ACTION_NEEDED_BUCKETS = {"duplicate_settlement", "stuck_refund", "unexplained"}
+ACTION_NEEDED_BUCKETS = {"duplicate_settlement", "stuck_refund", "chargeback_duplicate", "unexplained"}
 SELF_RESOLVING_BUCKETS = {"fee_sweep_timing"}
 
 
 def compute_report(data_dir=None):
     """Runs the full pipeline and returns everything report.py's CLI output
     and dashboard/build.py's HTML both need, so neither has to re-derive it."""
-    transactions, settlements, refunds, fee_sweeps, nodal_ledger = replay.load_tables(data_dir)
+    transactions, settlements, refunds, fee_sweeps, chargebacks, nodal_ledger = replay.load_tables(data_dir)
     merged = replay.run(data_dir)
 
     total_days = len(merged)
     events = classify.find_events(merged)
-    classified = classify.classify_events(events, settlements, refunds, fee_sweeps, None)
-    classified = llm_explain.explain_unexplained(classified, transactions, settlements, refunds, fee_sweeps)
+    classified = classify.classify_events(events, settlements, refunds, fee_sweeps, chargebacks)
+    classified = llm_explain.explain_unexplained(classified, transactions, settlements, refunds, fee_sweeps, chargebacks)
 
     drift_days = int((merged["drift"].abs() > classify.TOLERANCE).sum())
     incidents = [ev for ev in classified if ev.bucket != "fee_sweep_timing_resolved"]
@@ -61,7 +61,7 @@ def compute_report(data_dir=None):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data-dir", default=None, help="Directory with the 5 recorded CSVs (default: data/generated/)")
+    parser.add_argument("--data-dir", default=None, help="Directory with the 6 recorded CSVs (default: data/generated/)")
     args = parser.parse_args()
 
     r = compute_report(args.data_dir)

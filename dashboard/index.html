@@ -538,7 +538,7 @@
         <div class="pipeline-step">
           <div class="num">03</div>
           <h3>Classify</h3>
-          <p>Duplicate settlement, stuck refund, or fee-sweep timing — confirmed only once a matching reversal actually shows up later in the series.</p>
+          <p>Duplicate settlement, stuck refund, duplicate chargeback, or fee-sweep timing (confirmed only once a matching reversal actually shows up later in the series).</p>
         </div>
         <div class="pipeline-step">
           <div class="num">04</div>
@@ -591,51 +591,51 @@
 const DATA = {
   "github_url": "https://github.com/utkarshhh2603/nodal-drift-auditor",
   "summary": {
-    "transactions_audited": 360,
-    "total_days": 96,
-    "drift_days": 92,
-    "incident_count": 16,
-    "value_at_risk": 206232.32,
-    "self_resolving_value": 1844.56,
-    "rule_classified": 12,
+    "transactions_audited": 460,
+    "total_days": 128,
+    "drift_days": 119,
+    "incident_count": 20,
+    "value_at_risk": 256405.85,
+    "self_resolving_value": 2926.47,
+    "rule_classified": 16,
     "llm_classified": 4
   },
   "incidents": [
     {
-      "date": "2026-08-05",
+      "date": "2026-08-10",
       "bucket": "stuck_refund",
       "bucket_label": "Stuck refund",
-      "delta": -12380.51,
-      "txn_id": "T0013",
+      "delta": -38804.7,
+      "txn_id": "T0035",
       "confidence": "high",
-      "detail": "A refund for T0013 was started on 2026-08-05 and marked as done, but the money never actually left the bank account - the refund silently failed somewhere along the way.",
-      "fix": "Try the refund again (R0013), and this time don't mark it complete until you can see the money actually leave the account."
+      "detail": "A refund for T0035 was started on 2026-08-10 and marked as done, but the money never actually left the bank account - the refund silently failed somewhere along the way.",
+      "fix": "Try the refund again (R0035), and this time don't mark it complete until you can see the money actually leave the account."
     },
     {
-      "date": "2026-08-10",
-      "bucket": "fee_sweep_timing",
-      "bucket_label": "Fee sweep timing",
-      "delta": -51.93,
-      "txn_id": "T0032",
+      "date": "2026-08-14",
+      "bucket": "chargeback_duplicate",
+      "bucket_label": "Duplicate chargeback",
+      "delta": -4057.84,
+      "txn_id": "T0013",
       "confidence": "high",
-      "detail": "Razorpay's fee for T0032 was supposed to come out of the account on 2026-08-10, but the bank didn't actually take the money until 2026-08-13 - a short delay, not a real loss.",
-      "fix": "Nothing to do - the books already balanced themselves out once the late payment came through on 2026-08-13."
+      "detail": "A chargeback dispute for T0013 was logged twice on 2026-08-14, but the bank only actually pulled the disputed money out of the account once - most likely the card network's dispute notice got processed twice.",
+      "fix": "Delete the duplicate chargeback entry (C0013dup) from the records, keeping only C0013. First confirm with the bank statement that the disputed amount was only pulled once."
     },
     {
       "date": "2026-08-15",
-      "bucket": "stuck_refund",
-      "bucket_label": "Stuck refund",
-      "delta": -14184.38,
-      "txn_id": "T0053",
-      "confidence": "high",
-      "detail": "A refund for T0053 was started on 2026-08-15 and marked as done, but the money never actually left the bank account - the refund silently failed somewhere along the way.",
-      "fix": "Try the refund again (R0053), and this time don't mark it complete until you can see the money actually leave the account."
+      "bucket": "unexplained",
+      "bucket_label": "Unexplained",
+      "delta": -1724.63,
+      "txn_id": "",
+      "confidence": "low",
+      "detail": "On 2026-08-15, the money in the account doesn't match what the records say it should (off by about Rs.1,724.63) - and none of the usual explanations (a duplicate payout, a failed refund, a late fee, a duplicate chargeback) account for it.",
+      "fix": "This needs a person to look into directly - there isn't enough information here to safely guess what happened."
     },
     {
       "date": "2026-08-20",
       "bucket": "stuck_refund",
       "bucket_label": "Stuck refund",
-      "delta": -35415.56,
+      "delta": -19681.78,
       "txn_id": "T0075",
       "confidence": "high",
       "detail": "A refund for T0075 was started on 2026-08-20 and marked as done, but the money never actually left the bank account - the refund silently failed somewhere along the way.",
@@ -643,102 +643,102 @@ const DATA = {
     },
     {
       "date": "2026-08-25",
-      "bucket": "unexplained",
-      "bucket_label": "Unexplained",
-      "delta": -6945.72,
-      "txn_id": "",
-      "confidence": "low",
-      "detail": "On 2026-08-25, the money in the account doesn't match what the records say it should (off by about Rs.6,945.72) - and none of the usual explanations (a duplicate payout, a failed refund, a late fee) account for it.",
-      "fix": "This needs a person to look into directly - there isn't enough information here to safely guess what happened."
+      "bucket": "fee_sweep_timing",
+      "bucket_label": "Fee sweep timing",
+      "delta": -862.01,
+      "txn_id": "T0094",
+      "confidence": "high",
+      "detail": "Razorpay's fee for T0094 was supposed to come out of the account on 2026-08-25, but the bank didn't actually take the money until 2026-08-28 - a short delay, not a real loss.",
+      "fix": "Nothing to do - the books already balanced themselves out once the late payment came through on 2026-08-28."
     },
     {
       "date": "2026-08-30",
-      "bucket": "fee_sweep_timing",
-      "bucket_label": "Fee sweep timing",
-      "delta": -679.16,
-      "txn_id": "T0115",
-      "confidence": "high",
-      "detail": "Razorpay's fee for T0115 was supposed to come out of the account on 2026-08-30, but the bank didn't actually take the money until 2026-09-02 - a short delay, not a real loss.",
-      "fix": "Nothing to do - the books already balanced themselves out once the late payment came through on 2026-09-02."
+      "bucket": "unexplained",
+      "bucket_label": "Unexplained",
+      "delta": -5539.95,
+      "txn_id": "",
+      "confidence": "low",
+      "detail": "On 2026-08-30, the money in the account doesn't match what the records say it should (off by about Rs.5,539.95) - and none of the usual explanations (a duplicate payout, a failed refund, a late fee, a duplicate chargeback) account for it.",
+      "fix": "This needs a person to look into directly - there isn't enough information here to safely guess what happened."
     },
     {
       "date": "2026-09-04",
       "bucket": "unexplained",
       "bucket_label": "Unexplained",
-      "delta": -7739.65,
+      "delta": -263.11,
       "txn_id": "",
       "confidence": "low",
-      "detail": "On 2026-09-04, the money in the account doesn't match what the records say it should (off by about Rs.7,739.65) - and none of the usual explanations (a duplicate payout, a failed refund, a late fee) account for it.",
+      "detail": "On 2026-09-04, the money in the account doesn't match what the records say it should (off by about Rs.263.11) - and none of the usual explanations (a duplicate payout, a failed refund, a late fee, a duplicate chargeback) account for it.",
       "fix": "This needs a person to look into directly - there isn't enough information here to safely guess what happened."
     },
     {
-      "date": "2026-09-09",
-      "bucket": "fee_sweep_timing",
-      "bucket_label": "Fee sweep timing",
-      "delta": -794.46,
-      "txn_id": "T0152",
+      "date": "2026-09-14",
+      "bucket": "stuck_refund",
+      "bucket_label": "Stuck refund",
+      "delta": -24461.11,
+      "txn_id": "T0174",
       "confidence": "high",
-      "detail": "Razorpay's fee for T0152 was supposed to come out of the account on 2026-09-09, but the bank didn't actually take the money until 2026-09-12 - a short delay, not a real loss.",
-      "fix": "Nothing to do - the books already balanced themselves out once the late payment came through on 2026-09-12."
+      "detail": "A refund for T0174 was started on 2026-09-14 and marked as done, but the money never actually left the bank account - the refund silently failed somewhere along the way.",
+      "fix": "Try the refund again (R0174), and this time don't mark it complete until you can see the money actually leave the account."
     },
     {
-      "date": "2026-09-14",
-      "bucket": "duplicate_settlement",
-      "bucket_label": "Duplicate settlement",
-      "delta": -17288.38,
-      "txn_id": "T0173",
+      "date": "2026-09-18",
+      "bucket": "chargeback_duplicate",
+      "bucket_label": "Duplicate chargeback",
+      "delta": -2655.13,
+      "txn_id": "T0155",
       "confidence": "high",
-      "detail": "This payment (T0173) was recorded as paid out to the merchant twice on 2026-09-14, but the bank only actually sent the money once - most likely an automatic retry created a duplicate entry instead of noticing the first one already went through.",
-      "fix": "Delete the duplicate payout entry (S0173dup) from the records, keeping only S0173. First double-check against the actual bank statement that the merchant really was paid only once."
+      "detail": "A chargeback dispute for T0155 was logged twice on 2026-09-18, but the bank only actually pulled the disputed money out of the account once - most likely the card network's dispute notice got processed twice.",
+      "fix": "Delete the duplicate chargeback entry (C0155dup) from the records, keeping only C0155. First confirm with the bank statement that the disputed amount was only pulled once."
     },
     {
       "date": "2026-09-19",
-      "bucket": "duplicate_settlement",
-      "bucket_label": "Duplicate settlement",
-      "delta": -22968.86,
-      "txn_id": "T0195",
-      "confidence": "high",
-      "detail": "This payment (T0195) was recorded as paid out to the merchant twice on 2026-09-19, but the bank only actually sent the money once - most likely an automatic retry created a duplicate entry instead of noticing the first one already went through.",
-      "fix": "Delete the duplicate payout entry (S0195dup) from the records, keeping only S0195. First double-check against the actual bank statement that the merchant really was paid only once."
-    },
-    {
-      "date": "2026-09-24",
       "bucket": "unexplained",
       "bucket_label": "Unexplained",
-      "delta": -16067.38,
+      "delta": -6166.35,
       "txn_id": "",
       "confidence": "low",
-      "detail": "On 2026-09-24, the money in the account doesn't match what the records say it should (off by about Rs.16,067.38) - and none of the usual explanations (a duplicate payout, a failed refund, a late fee) account for it.",
+      "detail": "On 2026-09-19, the money in the account doesn't match what the records say it should (off by about Rs.6,166.35) - and none of the usual explanations (a duplicate payout, a failed refund, a late fee, a duplicate chargeback) account for it.",
       "fix": "This needs a person to look into directly - there isn't enough information here to safely guess what happened."
     },
     {
       "date": "2026-09-29",
-      "bucket": "unexplained",
-      "bucket_label": "Unexplained",
-      "delta": -13611.86,
-      "txn_id": "",
-      "confidence": "low",
-      "detail": "On 2026-09-29, the money in the account doesn't match what the records say it should (off by about Rs.13,611.86) - and none of the usual explanations (a duplicate payout, a failed refund, a late fee) account for it.",
-      "fix": "This needs a person to look into directly - there isn't enough information here to safely guess what happened."
+      "bucket": "fee_sweep_timing",
+      "bucket_label": "Fee sweep timing",
+      "delta": -858.55,
+      "txn_id": "T0233",
+      "confidence": "high",
+      "detail": "Razorpay's fee for T0233 was supposed to come out of the account on 2026-09-29, but the bank didn't actually take the money until 2026-10-02 - a short delay, not a real loss.",
+      "fix": "Nothing to do - the books already balanced themselves out once the late payment came through on 2026-10-02."
+    },
+    {
+      "date": "2026-10-03",
+      "bucket": "chargeback_duplicate",
+      "bucket_label": "Duplicate chargeback",
+      "delta": -16253.84,
+      "txn_id": "T0213",
+      "confidence": "high",
+      "detail": "A chargeback dispute for T0213 was logged twice on 2026-10-03, but the bank only actually pulled the disputed money out of the account once - most likely the card network's dispute notice got processed twice.",
+      "fix": "Delete the duplicate chargeback entry (C0213dup) from the records, keeping only C0213. First confirm with the bank statement that the disputed amount was only pulled once."
     },
     {
       "date": "2026-10-04",
-      "bucket": "stuck_refund",
-      "bucket_label": "Stuck refund",
-      "delta": -44995.9,
-      "txn_id": "T0253",
+      "bucket": "duplicate_settlement",
+      "bucket_label": "Duplicate settlement",
+      "delta": -41902.57,
+      "txn_id": "T0254",
       "confidence": "high",
-      "detail": "A refund for T0253 was started on 2026-10-04 and marked as done, but the money never actually left the bank account - the refund silently failed somewhere along the way.",
-      "fix": "Try the refund again (R0253), and this time don't mark it complete until you can see the money actually leave the account."
+      "detail": "This payment (T0254) was recorded as paid out to the merchant twice on 2026-10-04, but the bank only actually sent the money once - most likely an automatic retry created a duplicate entry instead of noticing the first one already went through.",
+      "fix": "Delete the duplicate payout entry (S0254dup) from the records, keeping only S0254. First double-check against the actual bank statement that the merchant really was paid only once."
     },
     {
       "date": "2026-10-09",
       "bucket": "fee_sweep_timing",
       "bucket_label": "Fee sweep timing",
-      "delta": -319.01,
-      "txn_id": "T0273",
+      "delta": -339.81,
+      "txn_id": "T0272",
       "confidence": "high",
-      "detail": "Razorpay's fee for T0273 was supposed to come out of the account on 2026-10-09, but the bank didn't actually take the money until 2026-10-12 - a short delay, not a real loss.",
+      "detail": "Razorpay's fee for T0272 was supposed to come out of the account on 2026-10-09, but the bank didn't actually take the money until 2026-10-12 - a short delay, not a real loss.",
       "fix": "Nothing to do - the books already balanced themselves out once the late payment came through on 2026-10-12."
     },
     {
@@ -746,28 +746,74 @@ const DATA = {
       "bucket": "duplicate_settlement",
       "bucket_label": "Duplicate settlement",
       "delta": -4223.58,
-      "txn_id": "T0294",
+      "txn_id": "T0292",
       "confidence": "high",
-      "detail": "This payment (T0294) was recorded as paid out to the merchant twice on 2026-10-14, but the bank only actually sent the money once - most likely an automatic retry created a duplicate entry instead of noticing the first one already went through.",
-      "fix": "Delete the duplicate payout entry (S0294dup) from the records, keeping only S0294. First double-check against the actual bank statement that the merchant really was paid only once."
+      "detail": "This payment (T0292) was recorded as paid out to the merchant twice on 2026-10-14, but the bank only actually sent the money once - most likely an automatic retry created a duplicate entry instead of noticing the first one already went through.",
+      "fix": "Delete the duplicate payout entry (S0292dup) from the records, keeping only S0292. First double-check against the actual bank statement that the merchant really was paid only once."
     },
     {
-      "date": "2026-10-19",
+      "date": "2026-10-24",
+      "bucket": "stuck_refund",
+      "bucket_label": "Stuck refund",
+      "delta": -9746.56,
+      "txn_id": "T0332",
+      "confidence": "high",
+      "detail": "A refund for T0332 was started on 2026-10-24 and marked as done, but the money never actually left the bank account - the refund silently failed somewhere along the way.",
+      "fix": "Try the refund again (R0332), and this time don't mark it complete until you can see the money actually leave the account."
+    },
+    {
+      "date": "2026-10-28",
+      "bucket": "chargeback_duplicate",
+      "bucket_label": "Duplicate chargeback",
+      "delta": -11172.05,
+      "txn_id": "T0315",
+      "confidence": "high",
+      "detail": "A chargeback dispute for T0315 was logged twice on 2026-10-28, but the bank only actually pulled the disputed money out of the account once - most likely the card network's dispute notice got processed twice.",
+      "fix": "Delete the duplicate chargeback entry (C0315dup) from the records, keeping only C0315. First confirm with the bank statement that the disputed amount was only pulled once."
+    },
+    {
+      "date": "2026-10-29",
+      "bucket": "fee_sweep_timing",
+      "bucket_label": "Fee sweep timing",
+      "delta": -866.1,
+      "txn_id": "T0354",
+      "confidence": "high",
+      "detail": "Razorpay's fee for T0354 was supposed to come out of the account on 2026-10-29, but the bank didn't actually take the money until 2026-11-01 - a short delay, not a real loss.",
+      "fix": "Nothing to do - the books already balanced themselves out once the late payment came through on 2026-11-01."
+    },
+    {
+      "date": "2026-11-03",
       "bucket": "duplicate_settlement",
       "bucket_label": "Duplicate settlement",
-      "delta": -10410.54,
-      "txn_id": "T0312",
+      "delta": -33478.49,
+      "txn_id": "T0374",
       "confidence": "high",
-      "detail": "This payment (T0312) was recorded as paid out to the merchant twice on 2026-10-19, but the bank only actually sent the money once - most likely an automatic retry created a duplicate entry instead of noticing the first one already went through.",
-      "fix": "Delete the duplicate payout entry (S0312dup) from the records, keeping only S0312. First double-check against the actual bank statement that the merchant really was paid only once."
+      "detail": "This payment (T0374) was recorded as paid out to the merchant twice on 2026-11-03, but the bank only actually sent the money once - most likely an automatic retry created a duplicate entry instead of noticing the first one already went through.",
+      "fix": "Delete the duplicate payout entry (S0374dup) from the records, keeping only S0374. First double-check against the actual bank statement that the merchant really was paid only once."
+    },
+    {
+      "date": "2026-11-08",
+      "bucket": "duplicate_settlement",
+      "bucket_label": "Duplicate settlement",
+      "delta": -36274.16,
+      "txn_id": "T0394",
+      "confidence": "high",
+      "detail": "This payment (T0394) was recorded as paid out to the merchant twice on 2026-11-08, but the bank only actually sent the money once - most likely an automatic retry created a duplicate entry instead of noticing the first one already went through.",
+      "fix": "Delete the duplicate payout entry (S0394dup) from the records, keeping only S0394. First double-check against the actual bank statement that the merchant really was paid only once."
     }
   ],
   "backtest": {
     "seeds": 15,
-    "total_seeded": 240,
+    "total_seeded": 300,
     "false_positives": 0,
     "overall_recall": 100.0,
     "by_type": [
+      {
+        "type": "chargeback_duplicate",
+        "detected": 60,
+        "total": 60,
+        "recall": 100.0
+      },
       {
         "type": "duplicate_settlement",
         "detected": 60,

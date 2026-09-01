@@ -11,6 +11,10 @@ per-type recall table plus overall precision.
 
 Usage:
     python scripts/backtest.py [--seeds 20]
+
+Exits nonzero if recall drops below 100% or any false positive is found,
+so this can gate CI (.github/workflows/ci.yml) instead of just printing a
+number nobody re-checks after the first demo run.
 """
 import argparse
 import shutil
@@ -31,6 +35,7 @@ EXPECTED_BUCKET = {
     "stuck_refund": "stuck_refund",
     "late_fee_sweep": "fee_sweep_timing",
     "partial_refund_mismatch": "unexplained",  # by design - no rule covers this one
+    "chargeback_duplicate": "chargeback_duplicate",
 }
 
 
@@ -39,9 +44,9 @@ def run_one_seed(seed):
     out_dir, ground_truth = generate_data.generate(seed=seed, out_dir=out_dir, write_csvs=True, verbose=False)
 
     merged = replay.run(data_dir=out_dir)
-    transactions, settlements, refunds, fee_sweeps, _ = replay.load_tables(out_dir)
+    transactions, settlements, refunds, fee_sweeps, chargebacks, _ = replay.load_tables(out_dir)
     events = classify.find_events(merged)
-    classified = classify.classify_events(events, settlements, refunds, fee_sweeps, None)
+    classified = classify.classify_events(events, settlements, refunds, fee_sweeps, chargebacks)
 
     # Rule-classified events carry the txn_id they're about directly. A
     # genuinely "unexplained" event doesn't (correctly - the rule engine
@@ -107,9 +112,15 @@ def main():
         print(f"{noise_type:<28} {detected:>10} {len(hits):>8} {100*detected/len(hits):>7.1f}%")
     print(f"{'OVERALL':<28} {overall_detected:>10} {len(all_incidents):>8} {100*overall_detected/len(all_incidents):>7.1f}%")
     print(f"\nFalse-positive candidates (flagged, no matching seeded incident): {total_false_positives}")
-    print("(Expected: 0 for duplicate_settlement/stuck_refund/fee_sweep_timing - clean")
-    print(" transactions never carry drift; 'unexplained' is only ever the seeded")
-    print(" partial_refund_mismatch cases by construction of this synthetic generator.)")
+    print("(Expected: 0 for duplicate_settlement/stuck_refund/fee_sweep_timing/")
+    print(" chargeback_duplicate - clean transactions never carry drift; 'unexplained'")
+    print(" is only ever the seeded partial_refund_mismatch cases by construction")
+    print(" of this synthetic generator.)")
+
+    if overall_detected < len(all_incidents) or total_false_positives > 0:
+        print(f"\nFAILED: recall {100*overall_detected/len(all_incidents):.1f}% (want 100%) "
+              f"or {total_false_positives} false positive(s) found (want 0).")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

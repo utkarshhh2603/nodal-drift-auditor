@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test-and-backtest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run unit tests
+        run: pytest -v
+
+      - name: Generate demo batch
+        run: python data/generate_data.py
+
+      - name: Run report against the demo batch
+        run: python report.py
+
+      # scripts/backtest.py exits nonzero if recall drops below 100% or any
+      # false positive is found - this is what turns the "100% recall"
+      # README claim into something continuously checked on every push,
+      # instead of a one-time assertion nobody re-verifies.
+      - name: Backtest detection accuracy (gates the build)
+        run: python scripts/backtest.py --seeds 20

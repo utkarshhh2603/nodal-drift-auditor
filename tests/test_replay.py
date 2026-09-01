@@ -13,6 +13,9 @@ from engine.classify import (
 )
 
 
+EMPTY_CHARGEBACKS = pd.DataFrame(columns=["chargeback_id", "txn_id", "amount", "chargeback_date", "status"])
+
+
 def test_compute_expected_balance_simple_capture_and_settle():
     d0, d1 = date(2026, 1, 1), date(2026, 1, 2)
     transactions = pd.DataFrame([{"txn_id": "T1", "amount": 1000.0, "payment_date": d0, "status": "captured"}])
@@ -20,7 +23,7 @@ def test_compute_expected_balance_simple_capture_and_settle():
     refunds = pd.DataFrame(columns=["refund_id", "txn_id", "amount", "refund_date", "status"])
     fee_sweeps = pd.DataFrame([{"fee_id": "F1", "txn_id": "T1", "amount": 20.0, "swept_date": d1}])
 
-    result = compute_expected_balance(transactions, settlements, refunds, fee_sweeps, [d0, d1])
+    result = compute_expected_balance(transactions, settlements, refunds, fee_sweeps, EMPTY_CHARGEBACKS, [d0, d1])
 
     assert result.loc[result["date"] == d0, "expected_balance"].iloc[0] == 1000.0
     # 1000 (still in) - 980 (settled out) - 20 (fee out) = 0
@@ -48,7 +51,7 @@ def test_duplicate_settlement_detected():
     assert len(events) == 1
     assert events[0]["date"] == d1
 
-    classified = classify_events(events, settlements, refunds, fee_sweeps, None)
+    classified = classify_events(events, settlements, refunds, fee_sweeps, EMPTY_CHARGEBACKS)
     assert len(classified) == 1
     assert classified[0].bucket == "duplicate_settlement"
 
@@ -77,7 +80,7 @@ def test_two_incidents_on_same_day_are_both_recovered():
     ])
 
     events = find_events(replay_df)
-    classified = classify_events(events, settlements, refunds, fee_sweeps, None)
+    classified = classify_events(events, settlements, refunds, fee_sweeps, EMPTY_CHARGEBACKS)
 
     buckets = sorted(ev.bucket for ev in classified)
     assert buckets == ["duplicate_settlement", "stuck_refund"]
@@ -99,7 +102,7 @@ def test_suggested_fix_cites_the_specific_row_to_reverse():
     ])
 
     events = find_events(replay_df)
-    classified = classify_events(events, settlements, refunds, fee_sweeps, None)
+    classified = classify_events(events, settlements, refunds, fee_sweeps, EMPTY_CHARGEBACKS)
 
     assert len(classified) == 1
     # The fix must name the specific duplicate row to reverse (S1dup), not
@@ -120,7 +123,7 @@ def test_unexplained_event_gets_manual_review_fix_not_a_fabricated_one():
     ])
 
     events = find_events(replay_df)
-    classified = classify_events(events, empty_settlements, empty_refunds, empty_fees, None)
+    classified = classify_events(events, empty_settlements, empty_refunds, empty_fees, EMPTY_CHARGEBACKS)
 
     assert len(classified) == 1
     assert classified[0].bucket == "unexplained"
@@ -158,3 +161,26 @@ def test_greedy_subset_directly_on_a_partial_match():
     # 50 + 40 = 90 (fits, remaining 5), next is 30 (doesn't fit under
     # remaining+tolerance=6) so it stops there.
     assert sorted(c.amount for c in chosen) == [40.0, 50.0]
+
+
+def test_duplicate_chargeback_detected():
+    d0, d1 = pd.Timestamp(2026, 1, 1), pd.Timestamp(2026, 1, 2)
+    empty_settlements = pd.DataFrame(columns=["settlement_id", "txn_id", "amount", "settlement_date", "status"])
+    empty_refunds = pd.DataFrame(columns=["refund_id", "txn_id", "amount", "refund_date", "status"])
+    empty_fees = pd.DataFrame(columns=["fee_id", "txn_id", "amount", "swept_date"])
+    chargebacks = pd.DataFrame([
+        {"chargeback_id": "C1", "txn_id": "T1", "amount": 400.0, "chargeback_date": d1, "status": "debited"},
+        {"chargeback_id": "C1dup", "txn_id": "T1", "amount": 400.0, "chargeback_date": d1, "status": "debited"},
+    ])
+    replay_df = pd.DataFrame([
+        {"date": d0, "expected_balance": 1000.0, "actual_balance": 1000.0, "drift": 0.0},
+        {"date": d1, "expected_balance": 200.0, "actual_balance": 600.0, "drift": -400.0},
+    ])
+
+    events = find_events(replay_df)
+    classified = classify_events(events, empty_settlements, empty_refunds, empty_fees, chargebacks)
+
+    assert len(classified) == 1
+    assert classified[0].bucket == "chargeback_duplicate"
+    assert "C1dup" in classified[0].suggested_fix
+    assert "C1" in classified[0].suggested_fix

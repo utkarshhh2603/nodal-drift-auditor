@@ -9,8 +9,8 @@ until they're settled to the merchant, per RBI's PA-PG guidelines. What the
 recorded books say should be in that account and what the bank statement
 actually shows **drift apart** — a duplicate settlement retry, a refund that
 silently failed, a fee sweep that landed late, a math bug in a partial
-refund. Nobody automatically audits this; it's usually caught (or missed)
-by hand.
+refund, a chargeback dispute logged twice. Nobody automatically audits
+this; it's usually caught (or missed) by hand.
 
 This tool replays the recorded books to compute the *expected* balance,
 diffs it against the *actual* bank balance, and classifies every drift into
@@ -42,7 +42,7 @@ Measure detection accuracy across many synthetic batches (not just the one
 python scripts/backtest.py --seeds 25
 ```
 
-Current result: **100% recall, 0 false positives across 400 seeded
+Current result: **100% recall, 0 false positives across 500 seeded
 incidents over 25 seeds** — see [Measured accuracy](#measured-accuracy).
 
 Sanity-check against a batch with zero seeded incidents (proves the tool
@@ -67,16 +67,35 @@ Then open `dashboard/index.html` directly, or serve it:
 python -m http.server 8000 --directory dashboard
 ```
 
+Measure throughput at scale (Track 04's bar asks for "throughput plus
+measured accuracy" — this answers the throughput half, `backtest.py`
+answers accuracy):
+
+```bash
+python scripts/benchmark.py --transactions 10000
+```
+
+CI (`.github/workflows/ci.yml`) runs `pytest` and `scripts/backtest.py`
+on every push — the backtest script exits nonzero if recall drops below
+100% or any false positive appears, so the 100%-recall claim below is
+continuously checked, not a one-time assertion.
+
 ## How it works
 
-1. **`data/generate_data.py`** — builds a synthetic nodal account: 360
-   transactions over 90 days, recorded settlements/refunds/fee sweeps, and
-   a ground-truth daily bank ledger. 344 transactions reconcile perfectly;
-   16 (~4.4%) are each seeded with one of four real-world failure modes —
-   4 duplicate settlements, 4 stuck refunds, 4 late fee sweeps, 4 partial-
-   refund math bugs — spaced onto their own days so each produces an
-   isolated, unambiguous signal, rather than several incidents blurring
-   together into one unreadable spike.
+1. **`data/generate_data.py`** — builds a synthetic nodal account: 460
+   transactions over 115 days, recorded settlements/refunds/fee sweeps/
+   chargebacks, and a ground-truth daily bank ledger. 440 transactions
+   reconcile perfectly (including plenty of routine, correctly-recorded
+   chargebacks - proving the duplicate-chargeback check doesn't just flag
+   every dispute it sees); 20 (~4.3%) are each seeded with one of five
+   real-world failure modes - 4 duplicate settlements, 4 stuck refunds,
+   4 late fee sweeps, 4 partial-refund math bugs, 4 duplicate chargebacks
+   - spaced onto their own days (and lags) so each produces an isolated,
+   unambiguous signal, rather than several incidents blurring together
+   into one unreadable spike. `generate()` also takes `num_days`/
+   `txns_per_day` overrides (used by `scripts/benchmark.py --transactions`
+   to build a much larger batch for a throughput measurement, without a
+   second copy of this generator).
 2. **`engine/replay.py`** — recomputes the expected daily balance purely
    from the recorded tables (captures in, settlements/fees/refunds out).
    This is deliberately naive — it trusts the records the way a
@@ -85,17 +104,17 @@ python -m http.server 8000 --directory dashboard
 3. **`engine/classify.py`** — collapses the cumulative drift series into
    discrete events (a day the drift *changed*, not every day it stayed
    nonzero). A single day can have more than one cause at once, so every
-   day's candidates (duplicate settlements, stuck refunds, fee sweeps with
-   an independently confirmed later reversal) are enumerated first, then
-   matched against that day's total drift via subset-sum — each matched
-   candidate is reported as its own incident, and any untouched remainder
-   is reported as a smaller, more precise "unexplained" residual instead
-   of one undifferentiated blob. A fee_sweep is only ever treated as a
-   candidate once a matching reversal is confirmed elsewhere in the
-   series — an ordinary, non-anomalous fee looks identical to a real one
-   on its own, so without that check two unrelated clean fees on a busy
-   day can coincidentally sum close enough to a target to get falsely
-   matched.
+   day's candidates (duplicate settlements, stuck refunds, duplicate
+   chargebacks, fee sweeps with an independently confirmed later reversal)
+   are enumerated first, then matched against that day's total drift via
+   subset-sum — each matched candidate is reported as its own incident,
+   and any untouched remainder is reported as a smaller, more precise
+   "unexplained" residual instead of one undifferentiated blob. A fee_sweep
+   is only ever treated as a candidate once a matching reversal is
+   confirmed elsewhere in the series — an ordinary, non-anomalous fee looks
+   identical to a real one on its own, so without that check two unrelated
+   clean fees on a busy day can coincidentally sum close enough to a
+   target to get falsely matched.
 4. **`engine/llm_explain.py`** — only touches the "unexplained" bucket.
    Given the raw recorded rows near that date, it proposes a hypothesis
    and a confidence level. It never re-derives arithmetic the rule engine
@@ -108,9 +127,10 @@ python -m http.server 8000 --directory dashboard
 ## What "the bar" looks like here
 
 - **Incidents detected + ₹ value**: split into "value at risk" (duplicate
-  settlements, stuck refunds, unexplained — needs a human/action) vs.
-  "self-resolving timing noise" (delayed fee sweeps — flagged but not a
-  real loss). A flat "day match rate" isn't used as the headline number:
+  settlements, stuck refunds, duplicate chargebacks, unexplained — needs a
+  human/action) vs. "self-resolving timing noise" (delayed fee sweeps —
+  flagged but not a real loss). A flat "day match rate" isn't used as the
+  headline number:
   nodal drift is cumulative, so once introduced it persists on every later
   day until reconciled, which makes day-level "% matched" degrade
   mechanically as more incidents accumulate rather than reflect audit
@@ -143,25 +163,28 @@ generator's own ground truth (never seen by the audit code itself):
 
 ```
 Incident type                  Detected    Total   Recall
+chargeback_duplicate                100      100   100.0%
 duplicate_settlement                100      100   100.0%
 late_fee_sweep                      100      100   100.0%
 partial_refund_mismatch             100      100   100.0%
 stuck_refund                        100      100   100.0%
-OVERALL                             400      400   100.0%
+OVERALL                             500      500   100.0%
 
 False-positive candidates: 0
 ```
-(25 seeds, 400 total seeded incidents.) `partial_refund_mismatch` recall
+(25 seeds, 500 total seeded incidents.) `partial_refund_mismatch` recall
 means "correctly left unexplained for the LLM" — that failure mode has no
 rule-based signature by design, so 100% there means the rule engine never
-falsely claims to explain it with the wrong cause.
+falsely claims to explain it with the wrong cause. This is also the exact
+check CI runs on every push (`.github/workflows/ci.yml`), gated by
+`scripts/backtest.py`'s exit code.
 
 **Clean-batch sanity check** (`python data/generate_data.py --clean` +
 `python report.py --data-dir ...`, real output, not hypothetical):
 
 ```
-Transactions audited:   360
-Days audited:            96  (0 with a book-vs-bank mismatch)
+Transactions audited:   460
+Days audited:            128  (0 with a book-vs-bank mismatch)
 Incidents detected:      0
   Value at risk (action needed):   Rs.0.00
   Self-resolving timing noise:     Rs.0.00  (delayed fee sweeps, not a real loss)
@@ -169,6 +192,26 @@ Detection: 0/0 incidents explained same-day by rules; 0 handed to LLM review
 ```
 Zero incidents on a batch seeded with zero incidents — the tool doesn't
 just always find something to flag.
+
+## Throughput
+
+`scripts/benchmark.py` generates a large, unseeded batch and times the
+audit pipeline against it — Track 04's bar asks for "throughput plus
+measured accuracy," and the two are deliberately kept separate: this
+measures speed, `scripts/backtest.py` measures correctness, so a large
+run here doesn't have to double as a correctness claim.
+
+```
+Transactions:        10,000 (400 days x 25/day)
+Records:             9,182 settlements, 1,579 refunds, 9,182 fee sweeps, 823 chargebacks
+Replay:              0.02s
+Classify:            0.01s
+Audit time (replay + classify): 0.03s
+Throughput:          342,772 transactions/sec
+```
+At 100,000 transactions: 0.21s audit time, ~469,000 transactions/sec -
+throughput holds (even improves slightly, from pandas' vectorized
+groupby/sum operations amortizing better at volume) rather than degrading.
 
 ## Dashboard
 

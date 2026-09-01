@@ -28,6 +28,7 @@ BUCKET_LABELS = {
     "stuck_refund": "Stuck refund",
     "fee_sweep_timing": "Fee sweep timing",
     "fee_sweep_timing_resolved": "Fee sweep resolved",
+    "chargeback_duplicate": "Duplicate chargeback",
     "unexplained": "Unexplained",
 }
 
