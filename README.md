@@ -242,10 +242,24 @@ AUTO-FIXED BY THE AGENT (8 incident(s), Rs.150,017.66 corrected)
 Corrected books written to: data/generated/corrected
 
 NEEDS HUMAN ACTION (8 incident(s) - moving money or an unclear cause, neither of which the agent is authorized to act on alone):
+
   1. [2026-08-10] stuck_refund (T0035, Rs.38,804.70)
-     Try the refund again (R0035), and this time don't mark it complete until you can see the money actually leave the account.
-  ... (7 more)
+     1. Open the payment processor's dashboard and look up refund R0035 for transaction T0035 - confirm its real status with the processor directly, not just the 'issued' status in our own records.
+     2. If the processor also shows it never completed, re-initiate a refund for Rs.38,804.70 through the processor's dashboard or refund API.
+     3. Wait for the processor's own webhook/status update confirming the debit actually posted to the customer's bank account before marking this refund resolved internally.
+     4. If the processor's records disagree with the bank ledger, call the bank's nodal account relationship desk and ask them to trace the UTR/reference number for that debit.
+     5. Log the resolution - ticket number, who authorized the re-attempt - for the audit trail.
+  ... (7 more, each with its own numbered runbook)
 ```
+Every incident that isn't auto-fixable gets a full numbered runbook like
+this (`resolution_steps` in `engine/classify.py`) - concrete actions
+citing the specific processor record or bank contact, not a one-line
+platitude. `unexplained` incidents get an investigation checklist instead
+(pull the bank statement, check for transaction types this tool doesn't
+model, call the bank's nodal relationship desk for the itemized UTR-level
+list). The dashboard renders these as a numbered "How to resolve this"
+list in the detail panel.
+
 Re-running `report.py --data-dir data/generated/corrected` afterward
 shows exactly 12 incidents instead of 20, and `duplicate_settlement`/
 `chargeback_duplicate` are completely absent from the bucket counts -

@@ -94,9 +94,10 @@ def main():
     if args.apply_fixes:
         _run_remediation(r, args.data_dir)
 
-    rows = [["date", "delta", "bucket", "confidence", "txn_id", "detail", "suggested_fix"]]
+    rows = [["date", "delta", "bucket", "confidence", "txn_id", "detail", "suggested_fix", "resolution_steps"]]
     rows += [
-        [ev.date.date(), ev.delta, ev.bucket, ev.confidence, ev.txn_id, ev.detail, ev.suggested_fix]
+        [ev.date.date(), ev.delta, ev.bucket, ev.confidence, ev.txn_id, ev.detail, ev.suggested_fix,
+         " | ".join(ev.resolution_steps)]
         for ev in r["classified"]
     ]
     # Writing against a --data-dir batch goes alongside that data instead of
@@ -137,10 +138,11 @@ def _run_remediation(r, data_dir_arg):
     print(f"\nNEEDS HUMAN ACTION ({len(needs_human)} incident(s) - moving money or an unclear "
           f"cause, neither of which the agent is authorized to act on alone):")
     for i, ev in enumerate(needs_human, 1):
-        print(f"  {i}. [{ev.date.date()}] {ev.bucket} ({ev.txn_id or 'no single transaction'}, "
+        print(f"\n  {i}. [{ev.date.date()}] {ev.bucket} ({ev.txn_id or 'no single transaction'}, "
               f"Rs.{abs(ev.delta):,.2f})")
-        print(f"     {ev.suggested_fix}")
-    print("=" * 70)
+        for j, step in enumerate(ev.resolution_steps, 1):
+            print(f"     {j}. {step}")
+    print("\n" + "=" * 70)
 
 
 def _write_csv_resilient(path, rows, retries=5, delay=0.3):

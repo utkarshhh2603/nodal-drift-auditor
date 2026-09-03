@@ -367,6 +367,42 @@
   .detail-block .eyebrow { margin-bottom: 10px; display: block; }
   .detail-block p { font-size: 15px; line-height: 1.65; color: var(--text); max-width: 62ch; }
   .detail-block.fix p { color: var(--text-dim); }
+  .detail-block.steps ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: step;
+    max-width: 62ch;
+  }
+  .detail-block.steps li {
+    counter-increment: step;
+    position: relative;
+    padding: 2px 0 16px 34px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text);
+    border-left: 1px solid var(--line-strong);
+    margin-left: 11px;
+  }
+  .detail-block.steps li:last-child { border-left-color: transparent; padding-bottom: 0; }
+  .detail-block.steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: -12px;
+    top: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--accent-line);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 
   @media (max-width: 860px) {
     .incidents-layout { grid-template-columns: 1fr; }
@@ -675,9 +711,16 @@ function renderIncidentDetail() {
       <p>${inc.detail}</p>
     </div>
     <div class="detail-block fix">
-      <span class="eyebrow">${inc.auto_fixable ? 'What the agent did' : 'The fix'}</span>
+      <span class="eyebrow">${inc.auto_fixable ? 'What the agent did' : 'The short version'}</span>
       <p>${inc.fix}</p>
     </div>
+    ${inc.resolution_steps && inc.resolution_steps.length ? `
+    <div class="detail-block steps">
+      <span class="eyebrow">How to resolve this</span>
+      <ol>
+        ${inc.resolution_steps.map(step => `<li>${step}</li>`).join('')}
+      </ol>
+    </div>` : ''}
   `;
 }
 

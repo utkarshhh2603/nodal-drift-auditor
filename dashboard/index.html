@@ -367,6 +367,42 @@
   .detail-block .eyebrow { margin-bottom: 10px; display: block; }
   .detail-block p { font-size: 15px; line-height: 1.65; color: var(--text); max-width: 62ch; }
   .detail-block.fix p { color: var(--text-dim); }
+  .detail-block.steps ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: step;
+    max-width: 62ch;
+  }
+  .detail-block.steps li {
+    counter-increment: step;
+    position: relative;
+    padding: 2px 0 16px 34px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text);
+    border-left: 1px solid var(--line-strong);
+    margin-left: 11px;
+  }
+  .detail-block.steps li:last-child { border-left-color: transparent; padding-bottom: 0; }
+  .detail-block.steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: -12px;
+    top: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--accent-line);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 
   @media (max-width: 860px) {
     .incidents-layout { grid-template-columns: 1fr; }
@@ -624,7 +660,14 @@ const DATA = {
       "confidence": "high",
       "detail": "A refund for T0035 was started on 2026-08-10 and marked as done, but the money never actually left the bank account - the refund silently failed somewhere along the way.",
       "fix": "Try the refund again (R0035), and this time don't mark it complete until you can see the money actually leave the account.",
-      "auto_fixable": false
+      "auto_fixable": false,
+      "resolution_steps": [
+        "Open the payment processor's dashboard and look up refund R0035 for transaction T0035 - confirm its real status with the processor directly, not just the 'issued' status in our own records.",
+        "If the processor also shows it never completed, re-initiate a refund for Rs.38,804.70 through the processor's dashboard or refund API.",
+        "Wait for the processor's own webhook/status update confirming the debit actually posted to the customer's bank account before marking this refund resolved internally - don't mark it 'processed' on a re-attempt alone.",
+        "If the processor's records disagree with the bank ledger (i.e. the processor says it succeeded but the money still isn't showing as debited), call the bank's nodal account relationship desk and ask them to trace the UTR/reference number for the Rs.38,804.70 debit on or after 2026-08-10.",
+        "Log the resolution - ticket number, who authorized the re-attempt - for the audit trail."
+      ]
     },
     {
       "date": "2026-08-14",
@@ -635,7 +678,8 @@ const DATA = {
       "confidence": "high",
       "detail": "A chargeback dispute for T0013 was logged twice on 2026-08-14, but the bank only actually pulled the disputed money out of the account once - most likely the card network's dispute notice got processed twice.",
       "fix": "Delete the duplicate chargeback entry (C0013dup) from the records, keeping only C0013. First confirm with the bank statement that the disputed amount was only pulled once.",
-      "auto_fixable": true
+      "auto_fixable": true,
+      "resolution_steps": []
     },
     {
       "date": "2026-08-15",
@@ -646,7 +690,14 @@ const DATA = {
       "confidence": "low",
       "detail": "On 2026-08-15, the money in the account doesn't match what the records say it should (off by about Rs.1,724.63) - and none of the usual explanations (a duplicate payout, a failed refund, a late fee, a duplicate chargeback) account for it.",
       "fix": "This needs a person to look into directly - there isn't enough information here to safely guess what happened.",
-      "auto_fixable": false
+      "auto_fixable": false,
+      "resolution_steps": [
+        "Pull the bank statement for 2026-08-15 and manually line up every debit/credit on it against transactions.csv, settlements.csv, refunds.csv, fee_sweeps.csv, and chargebacks.csv for that date - the mismatch is whatever doesn't have a match.",
+        "Check for transaction types this tool doesn't model yet: manual bank charges, an RBI-mandated hold or freeze, a GST/TDS deduction, interest credited on the nodal balance, or a settlement batch that got cut off mid-file.",
+        "Call the bank's nodal account relationship desk and ask for the itemized, UTR-level transaction list for 2026-08-15 - the recorded books only have aggregator-side entries, and the bank's own log is the one source this tool can't see.",
+        "Check Razorpay's internal finance-ops audit log for any manual override or intervention on that date that wouldn't appear in the standard recorded tables.",
+        "Once the cause is confirmed, log it. If it's a recurring pattern rather than a one-off, it's a candidate for a new rule in engine/classify.py rather than staying 'unexplained' every time it happens."
+      ]
     },
     {
       "date": "2026-08-20",
@@ -657,7 +708,14 @@ const DATA = {
       "confidence": "high",
       "detail": "A refund for T0075 was started on 2026-08-20 and marked as done, but the money never actually left the bank account - the refund silently failed somewhere along the way.",
       "fix": "Try the refund again (R0075), and this time don't mark it complete until you can see the money actually leave the account.",
-      "auto_fixable": false
+      "auto_fixable": false,
+      "resolution_steps": [
+        "Open the payment processor's dashboard and look up refund R0075 for transaction T0075 - confirm its real status with the processor directly, not just the 'issued' status in our own records.",
+        "If the processor also shows it never completed, re-initiate a refund for Rs.19,681.78 through the processor's dashboard or refund API.",
+        "Wait for the processor's own webhook/status update confirming the debit actually posted to the customer's bank account before marking this refund resolved internally - don't mark it 'processed' on a re-attempt alone.",
+        "If the processor's records disagree with the bank ledger (i.e. the processor says it succeeded but the money still isn't showing as debited), call the bank's nodal account relationship desk and ask them to trace the UTR/reference number for the Rs.19,681.78 debit on or after 2026-08-20.",
+        "Log the resolution - ticket number, who authorized the re-attempt - for the audit trail."
+      ]
     },
     {
       "date": "2026-08-25",
@@ -668,7 +726,8 @@ const DATA = {
       "confidence": "high",
       "detail": "Razorpay's fee for T0094 was supposed to come out of the account on 2026-08-25, but the bank didn't actually take the money until 2026-08-28 - a short delay, not a real loss.",
       "fix": "Nothing to do - the books already balanced themselves out once the late payment came through on 2026-08-28.",
-      "auto_fixable": false
+      "auto_fixable": false,
+      "resolution_steps": []
     },
     {
       "date": "2026-08-30",
@@ -679,7 +738,14 @@ const DATA = {
       "confidence": "low",
       "detail": "On 2026-08-30, the money in the account doesn't match what the records say it should (off by about Rs.5,539.95) - and none of the usual explanations (a duplicate payout, a failed refund, a late fee, a duplicate chargeback) account for it.",
       "fix": "This needs a person to look into directly - there isn't enough information here to safely guess what happened.",
-      "auto_fixable": false
+      "auto_fixable": false,
+      "resolution_steps": [
+        "Pull the bank statement for 2026-08-30 and manually line up every debit/credit on it against transactions.csv, settlements.csv, refunds.csv, fee_sweeps.csv, and chargebacks.csv for that date - the mismatch is whatever doesn't have a match.",
+        "Check for transaction types this tool doesn't model yet: manual bank charges, an RBI-mandated hold or freeze, a GST/TDS deduction, interest credited on the nodal balance, or a settlement batch that got cut off mid-file.",
+        "Call the bank's nodal account relationship desk and ask for the itemized, UTR-level transaction list for 2026-08-30 - the recorded books only have aggregator-side entries, and the bank's own log is the one source this tool can't see.",
+        "Check Razorpay's internal finance-ops audit log for any manual override or intervention on that date that wouldn't appear in the standard recorded tables.",
+        "Once the cause is confirmed, log it. If it's a recurring pattern rather than a one-off, it's a candidate for a new rule in engine/classify.py rather than staying 'unexplained' every time it happens."
+      ]
     },
     {
       "date": "2026-09-04",
@@ -690,7 +756,14 @@ const DATA = {
       "confidence": "low",
       "detail": "On 2026-09-04, the money in the account doesn't match what the records say it should (off by about Rs.263.11) - and none of the usual explanations (a duplicate payout, a failed refund, a late fee, a duplicate chargeback) account for it.",
       "fix": "This needs a person to look into directly - there isn't enough information here to safely guess what happened.",
-      "auto_fixable": false
+      "auto_fixable": false,
+      "resolution_steps": [
+        "Pull the bank statement for 2026-09-04 and manually line up every debit/credit on it against transactions.csv, settlements.csv, refunds.csv, fee_sweeps.csv, and chargebacks.csv for that date - the mismatch is whatever doesn't have a match.",
+        "Check for transaction types this tool doesn't model yet: manual bank charges, an RBI-mandated hold or freeze, a GST/TDS deduction, interest credited on the nodal balance, or a settlement batch that got cut off mid-file.",
+        "Call the bank's nodal account relationship desk and ask for the itemized, UTR-level transaction list for 2026-09-04 - the recorded books only have aggregator-side entries, and the bank's own log is the one source this tool can't see.",
+        "Check Razorpay's internal finance-ops audit log for any manual override or intervention on that date that wouldn't appear in the standard recorded tables.",
+        "Once the cause is confirmed, log it. If it's a recurring pattern rather than a one-off, it's a candidate for a new rule in engine/classify.py rather than staying 'unexplained' every time it happens."
+      ]
     },
     {
       "date": "2026-09-14",
@@ -701,7 +774,14 @@ const DATA = {
       "confidence": "high",
       "detail": "A refund for T0174 was started on 2026-09-14 and marked as done, but the money never actually left the bank account - the refund silently failed somewhere along the way.",
       "fix": "Try the refund again (R0174), and this time don't mark it complete until you can see the money actually leave the account.",
-      "auto_fixable": false
+      "auto_fixable": false,
+      "resolution_steps": [
+        "Open the payment processor's dashboard and look up refund R0174 for transaction T0174 - confirm its real status with the processor directly, not just the 'issued' status in our own records.",
+        "If the processor also shows it never completed, re-initiate a refund for Rs.24,461.11 through the processor's dashboard or refund API.",
+        "Wait for the processor's own webhook/status update confirming the debit actually posted to the customer's bank account before marking this refund resolved internally - don't mark it 'processed' on a re-attempt alone.",
+        "If the processor's records disagree with the bank ledger (i.e. the processor says it succeeded but the money still isn't showing as debited), call the bank's nodal account relationship desk and ask them to trace the UTR/reference number for the Rs.24,461.11 debit on or after 2026-09-14.",
+        "Log the resolution - ticket number, who authorized the re-attempt - for the audit trail."
+      ]
     },
     {
       "date": "2026-09-18",
@@ -712,7 +792,8 @@ const DATA = {
       "confidence": "high",
       "detail": "A chargeback dispute for T0155 was logged twice on 2026-09-18, but the bank only actually pulled the disputed money out of the account once - most likely the card network's dispute notice got processed twice.",
       "fix": "Delete the duplicate chargeback entry (C0155dup) from the records, keeping only C0155. First confirm with the bank statement that the disputed amount was only pulled once.",
-      "auto_fixable": true
+      "auto_fixable": true,
+      "resolution_steps": []
     },
     {
       "date": "2026-09-19",
@@ -723,7 +804,14 @@ const DATA = {
       "confidence": "low",
       "detail": "On 2026-09-19, the money in the account doesn't match what the records say it should (off by about Rs.6,166.35) - and none of the usual explanations (a duplicate payout, a failed refund, a late fee, a duplicate chargeback) account for it.",
       "fix": "This needs a person to look into directly - there isn't enough information here to safely guess what happened.",
-      "auto_fixable": false
+      "auto_fixable": false,
+      "resolution_steps": [
+        "Pull the bank statement for 2026-09-19 and manually line up every debit/credit on it against transactions.csv, settlements.csv, refunds.csv, fee_sweeps.csv, and chargebacks.csv for that date - the mismatch is whatever doesn't have a match.",
+        "Check for transaction types this tool doesn't model yet: manual bank charges, an RBI-mandated hold or freeze, a GST/TDS deduction, interest credited on the nodal balance, or a settlement batch that got cut off mid-file.",
+        "Call the bank's nodal account relationship desk and ask for the itemized, UTR-level transaction list for 2026-09-19 - the recorded books only have aggregator-side entries, and the bank's own log is the one source this tool can't see.",
+        "Check Razorpay's internal finance-ops audit log for any manual override or intervention on that date that wouldn't appear in the standard recorded tables.",
+        "Once the cause is confirmed, log it. If it's a recurring pattern rather than a one-off, it's a candidate for a new rule in engine/classify.py rather than staying 'unexplained' every time it happens."
+      ]
     },
     {
       "date": "2026-09-29",
@@ -734,7 +822,8 @@ const DATA = {
       "confidence": "high",
       "detail": "Razorpay's fee for T0233 was supposed to come out of the account on 2026-09-29, but the bank didn't actually take the money until 2026-10-02 - a short delay, not a real loss.",
       "fix": "Nothing to do - the books already balanced themselves out once the late payment came through on 2026-10-02.",
-      "auto_fixable": false
+      "auto_fixable": false,
+      "resolution_steps": []
     },
     {
       "date": "2026-10-03",
@@ -745,7 +834,8 @@ const DATA = {
       "confidence": "high",
       "detail": "A chargeback dispute for T0213 was logged twice on 2026-10-03, but the bank only actually pulled the disputed money out of the account once - most likely the card network's dispute notice got processed twice.",
       "fix": "Delete the duplicate chargeback entry (C0213dup) from the records, keeping only C0213. First confirm with the bank statement that the disputed amount was only pulled once.",
-      "auto_fixable": true
+      "auto_fixable": true,
+      "resolution_steps": []
     },
     {
       "date": "2026-10-04",
@@ -756,7 +846,8 @@ const DATA = {
       "confidence": "high",
       "detail": "This payment (T0254) was recorded as paid out to the merchant twice on 2026-10-04, but the bank only actually sent the money once - most likely an automatic retry created a duplicate entry instead of noticing the first one already went through.",
       "fix": "Delete the duplicate payout entry (S0254dup) from the records, keeping only S0254. First double-check against the actual bank statement that the merchant really was paid only once.",
-      "auto_fixable": true
+      "auto_fixable": true,
+      "resolution_steps": []
     },
     {
       "date": "2026-10-09",
@@ -767,7 +858,8 @@ const DATA = {
       "confidence": "high",
       "detail": "Razorpay's fee for T0272 was supposed to come out of the account on 2026-10-09, but the bank didn't actually take the money until 2026-10-12 - a short delay, not a real loss.",
       "fix": "Nothing to do - the books already balanced themselves out once the late payment came through on 2026-10-12.",
-      "auto_fixable": false
+      "auto_fixable": false,
+      "resolution_steps": []
     },
     {
       "date": "2026-10-14",
@@ -778,7 +870,8 @@ const DATA = {
       "confidence": "high",
       "detail": "This payment (T0292) was recorded as paid out to the merchant twice on 2026-10-14, but the bank only actually sent the money once - most likely an automatic retry created a duplicate entry instead of noticing the first one already went through.",
       "fix": "Delete the duplicate payout entry (S0292dup) from the records, keeping only S0292. First double-check against the actual bank statement that the merchant really was paid only once.",
-      "auto_fixable": true
+      "auto_fixable": true,
+      "resolution_steps": []
     },
     {
       "date": "2026-10-24",
@@ -789,7 +882,14 @@ const DATA = {
       "confidence": "high",
       "detail": "A refund for T0332 was started on 2026-10-24 and marked as done, but the money never actually left the bank account - the refund silently failed somewhere along the way.",
       "fix": "Try the refund again (R0332), and this time don't mark it complete until you can see the money actually leave the account.",
-      "auto_fixable": false
+      "auto_fixable": false,
+      "resolution_steps": [
+        "Open the payment processor's dashboard and look up refund R0332 for transaction T0332 - confirm its real status with the processor directly, not just the 'issued' status in our own records.",
+        "If the processor also shows it never completed, re-initiate a refund for Rs.9,746.56 through the processor's dashboard or refund API.",
+        "Wait for the processor's own webhook/status update confirming the debit actually posted to the customer's bank account before marking this refund resolved internally - don't mark it 'processed' on a re-attempt alone.",
+        "If the processor's records disagree with the bank ledger (i.e. the processor says it succeeded but the money still isn't showing as debited), call the bank's nodal account relationship desk and ask them to trace the UTR/reference number for the Rs.9,746.56 debit on or after 2026-10-24.",
+        "Log the resolution - ticket number, who authorized the re-attempt - for the audit trail."
+      ]
     },
     {
       "date": "2026-10-28",
@@ -800,7 +900,8 @@ const DATA = {
       "confidence": "high",
       "detail": "A chargeback dispute for T0315 was logged twice on 2026-10-28, but the bank only actually pulled the disputed money out of the account once - most likely the card network's dispute notice got processed twice.",
       "fix": "Delete the duplicate chargeback entry (C0315dup) from the records, keeping only C0315. First confirm with the bank statement that the disputed amount was only pulled once.",
-      "auto_fixable": true
+      "auto_fixable": true,
+      "resolution_steps": []
     },
     {
       "date": "2026-10-29",
@@ -811,7 +912,8 @@ const DATA = {
       "confidence": "high",
       "detail": "Razorpay's fee for T0354 was supposed to come out of the account on 2026-10-29, but the bank didn't actually take the money until 2026-11-01 - a short delay, not a real loss.",
       "fix": "Nothing to do - the books already balanced themselves out once the late payment came through on 2026-11-01.",
-      "auto_fixable": false
+      "auto_fixable": false,
+      "resolution_steps": []
     },
     {
       "date": "2026-11-03",
@@ -822,7 +924,8 @@ const DATA = {
       "confidence": "high",
       "detail": "This payment (T0374) was recorded as paid out to the merchant twice on 2026-11-03, but the bank only actually sent the money once - most likely an automatic retry created a duplicate entry instead of noticing the first one already went through.",
       "fix": "Delete the duplicate payout entry (S0374dup) from the records, keeping only S0374. First double-check against the actual bank statement that the merchant really was paid only once.",
-      "auto_fixable": true
+      "auto_fixable": true,
+      "resolution_steps": []
     },
     {
       "date": "2026-11-08",
@@ -833,7 +936,8 @@ const DATA = {
       "confidence": "high",
       "detail": "This payment (T0394) was recorded as paid out to the merchant twice on 2026-11-08, but the bank only actually sent the money once - most likely an automatic retry created a duplicate entry instead of noticing the first one already went through.",
       "fix": "Delete the duplicate payout entry (S0394dup) from the records, keeping only S0394. First double-check against the actual bank statement that the merchant really was paid only once.",
-      "auto_fixable": true
+      "auto_fixable": true,
+      "resolution_steps": []
     }
   ],
   "backtest": {
@@ -949,9 +1053,16 @@ function renderIncidentDetail() {
       <p>${inc.detail}</p>
     </div>
     <div class="detail-block fix">
-      <span class="eyebrow">${inc.auto_fixable ? 'What the agent did' : 'The fix'}</span>
+      <span class="eyebrow">${inc.auto_fixable ? 'What the agent did' : 'The short version'}</span>
       <p>${inc.fix}</p>
     </div>
+    ${inc.resolution_steps && inc.resolution_steps.length ? `
+    <div class="detail-block steps">
+      <span class="eyebrow">How to resolve this</span>
+      <ol>
+        ${inc.resolution_steps.map(step => `<li>${step}</li>`).join('')}
+      </ol>
+    </div>` : ''}
   `;
 }
 

@@ -39,6 +39,12 @@ class DriftEvent:
     # anything that requires actually moving money, which needs a human's
     # authorization the agent doesn't have.
     auto_fix: dict = None
+    # A numbered runbook for incidents the agent can't fix on its own -
+    # concrete actions (who to contact, what to ask for, what to check),
+    # not a restatement of suggested_fix. Empty for auto-fixable incidents
+    # (the "what the agent did" text already covers those) and for
+    # fee_sweep_timing (nothing to do - it self-resolves).
+    resolution_steps: tuple = ()
 
 
 @dataclass
@@ -50,6 +56,7 @@ class Candidate:
     reversal_date: object = None  # for fee_sweep_timing: date the reversal was confirmed on
     suggested_fix: str = ""
     auto_fix: dict = None
+    resolution_steps: tuple = ()
 
 
 def find_events(replay_df):
@@ -78,6 +85,24 @@ def classify_events(events, settlements, refunds, fee_sweeps, chargebacks):
 
     NO_AUTO_FIX = "This needs a person to look into directly - there isn't enough information here to safely guess what happened."
 
+    def unexplained_steps(day):
+        return (
+            f"Pull the bank statement for {day} and manually line up every debit/credit on it "
+            f"against transactions.csv, settlements.csv, refunds.csv, fee_sweeps.csv, and "
+            f"chargebacks.csv for that date - the mismatch is whatever doesn't have a match.",
+            "Check for transaction types this tool doesn't model yet: manual bank charges, an "
+            "RBI-mandated hold or freeze, a GST/TDS deduction, interest credited on the nodal "
+            "balance, or a settlement batch that got cut off mid-file.",
+            f"Call the bank's nodal account relationship desk and ask for the itemized, "
+            f"UTR-level transaction list for {day} - the recorded books only have aggregator-side "
+            f"entries, and the bank's own log is the one source this tool can't see.",
+            "Check Razorpay's internal finance-ops audit log for any manual override or "
+            "intervention on that date that wouldn't appear in the standard recorded tables.",
+            "Once the cause is confirmed, log it. If it's a recurring pattern rather than a "
+            "one-off, it's a candidate for a new rule in engine/classify.py rather than staying "
+            "'unexplained' every time it happens.",
+        )
+
     for ev in events:
         d, delta = ev["date"], ev["delta"]
         if d in consumed:
@@ -97,6 +122,7 @@ def classify_events(events, settlements, refunds, fee_sweeps, chargebacks):
                 f"(a duplicate payout, a failed refund, a late fee, a duplicate chargeback) "
                 f"account for it.",
                 suggested_fix=NO_AUTO_FIX,
+                resolution_steps=unexplained_steps(d.date()),
             ))
             continue
 
@@ -112,6 +138,7 @@ def classify_events(events, settlements, refunds, fee_sweeps, chargebacks):
                 )
             results.append(DriftEvent(
                 d, event_delta, c.bucket, "high", c.detail, c.txn_id, c.suggested_fix, c.auto_fix,
+                c.resolution_steps,
             ))
 
         residual = round(abs(delta) - matched_total, 2)
@@ -122,6 +149,7 @@ def classify_events(events, settlements, refunds, fee_sweeps, chargebacks):
                 f"explained above. The remaining Rs.{residual:,.2f} doesn't match any of the "
                 f"usual explanations.",
                 suggested_fix=NO_AUTO_FIX,
+                resolution_steps=unexplained_steps(d.date()),
             ))
 
     return results
@@ -172,6 +200,22 @@ def _gather_candidates(d, delta, sign, settlements, refunds, fee_sweeps, chargeb
             txn_id=rrow["txn_id"],
             suggested_fix=f"Try the refund again ({rrow['refund_id']}), and this time don't mark "
                 f"it complete until you can see the money actually leave the account.",
+            resolution_steps=(
+                f"Open the payment processor's dashboard and look up refund {rrow['refund_id']} "
+                f"for transaction {rrow['txn_id']} - confirm its real status with the processor "
+                f"directly, not just the 'issued' status in our own records.",
+                f"If the processor also shows it never completed, re-initiate a refund for "
+                f"Rs.{rrow['amount']:,.2f} through the processor's dashboard or refund API.",
+                "Wait for the processor's own webhook/status update confirming the debit actually "
+                "posted to the customer's bank account before marking this refund resolved "
+                "internally - don't mark it 'processed' on a re-attempt alone.",
+                "If the processor's records disagree with the bank ledger (i.e. the processor "
+                "says it succeeded but the money still isn't showing as debited), call the "
+                "bank's nodal account relationship desk and ask them to trace the UTR/reference "
+                f"number for the Rs.{rrow['amount']:,.2f} debit on or after {d.date()}.",
+                "Log the resolution - ticket number, who authorized the re-attempt - for the "
+                "audit trail.",
+            ),
         ))
 
     # Fee sweep timing: unlike the two checks above, an ordinary fee_sweep

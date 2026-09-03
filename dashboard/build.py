@@ -52,6 +52,10 @@ def build_incidents_json(r):
             # duplicate row) that engine/remediate.py can apply on its own -
             # never for anything that requires actually moving money.
             "auto_fixable": bool(ev.auto_fix),
+            # Numbered runbook for incidents the agent can't apply itself -
+            # empty for auto-fixable ones (the fix text already covers it)
+            # and for fee_sweep_timing (nothing to do).
+            "resolution_steps": list(ev.resolution_steps),
         })
     incidents.sort(key=lambda i: i["date"])
     return incidents

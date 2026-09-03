@@ -130,6 +130,36 @@ def test_unexplained_event_gets_manual_review_fix_not_a_fabricated_one():
     # Should honestly say a person needs to look at it, not fabricate a fix
     # for something the rule engine doesn't actually understand.
     assert "person" in classified[0].suggested_fix.lower()
+    # But "needs a person" alone isn't a runbook - there should be concrete,
+    # numbered steps (bank contact, what to check) behind it.
+    assert len(classified[0].resolution_steps) >= 3
+    assert any("bank" in step.lower() for step in classified[0].resolution_steps)
+
+
+def test_stuck_refund_gets_a_concrete_runbook_not_just_a_one_liner():
+    d0, d1 = pd.Timestamp(2026, 1, 1), pd.Timestamp(2026, 1, 2)
+    empty_settlements = pd.DataFrame(columns=["settlement_id", "txn_id", "amount", "settlement_date", "status"])
+    refunds = pd.DataFrame([
+        {"refund_id": "R9", "txn_id": "T9", "amount": 500.0, "refund_date": d1, "status": "issued"},
+    ])
+    empty_fees = pd.DataFrame(columns=["fee_id", "txn_id", "amount", "swept_date"])
+    replay_df = pd.DataFrame([
+        {"date": d0, "expected_balance": 1000.0, "actual_balance": 1000.0, "drift": 0.0},
+        {"date": d1, "expected_balance": 500.0, "actual_balance": 1000.0, "drift": -500.0},
+    ])
+
+    events = find_events(replay_df)
+    classified = classify_events(events, empty_settlements, refunds, empty_fees, EMPTY_CHARGEBACKS)
+
+    assert len(classified) == 1
+    ev = classified[0]
+    assert ev.bucket == "stuck_refund"
+    assert not ev.auto_fix  # moving money always needs a human, never auto-applied
+    assert len(ev.resolution_steps) >= 3
+    # Steps must be concrete and specific to this incident, not boilerplate -
+    # citing the actual refund ID is what makes it a runbook, not a platitude.
+    assert any("R9" in step for step in ev.resolution_steps)
+    assert any("processor" in step.lower() for step in ev.resolution_steps)
 
 
 def test_best_subset_dispatches_to_greedy_above_the_exponential_search_limit():
