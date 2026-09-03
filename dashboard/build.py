@@ -48,6 +48,10 @@ def build_incidents_json(r):
             # to reverse/re-trigger) - set in engine/classify.py, not
             # generic per-bucket boilerplate.
             "fix": ev.suggested_fix,
+            # True only for a pure bookkeeping correction (an extra
+            # duplicate row) that engine/remediate.py can apply on its own -
+            # never for anything that requires actually moving money.
+            "auto_fixable": bool(ev.auto_fix),
         })
     incidents.sort(key=lambda i: i["date"])
     return incidents
@@ -95,6 +99,7 @@ def main():
     args = parser.parse_args()
 
     r = report.compute_report()
+    auto_fixed = [ev for ev in r["incidents"] if ev.auto_fix]
     data = {
         "github_url": args.repo_url,
         "summary": {
@@ -106,6 +111,8 @@ def main():
             "self_resolving_value": round(r["self_resolving_value"], 2),
             "rule_classified": r["rule_classified"],
             "llm_classified": r["llm_classified"],
+            "auto_fixed_count": len(auto_fixed),
+            "auto_fixed_value": round(sum(abs(ev.delta) for ev in auto_fixed), 2),
         },
         "incidents": build_incidents_json(r),
         "backtest": run_backtest(args.backtest_seeds),

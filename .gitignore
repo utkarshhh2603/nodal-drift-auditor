@@ -4,5 +4,6 @@ __pycache__/
 data/generated/
 data/generated_*/
 data/_backtest_tmp/
+data/_benchmark_tmp/
 report.csv
 report*.csv

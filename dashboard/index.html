@@ -303,6 +303,18 @@
     font-size: 14px;
     font-weight: 600;
   }
+  .row-fixed {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    color: var(--ok);
+    background: var(--ok-soft);
+    border-radius: 4px;
+    padding: 2px 6px;
+    margin-left: 6px;
+    white-space: nowrap;
+  }
   .incident-row .date {
     font-family: var(--mono);
     font-size: 11px;
@@ -319,7 +331,7 @@
   .incident-row .amt.pos { color: var(--ok); }
 
   .incident-detail { padding: 40px; }
-  .detail-eyebrow { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+  .detail-eyebrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
   .badge {
     font-family: var(--mono);
     font-size: 11px;
@@ -598,7 +610,9 @@ const DATA = {
     "value_at_risk": 256405.85,
     "self_resolving_value": 2926.47,
     "rule_classified": 16,
-    "llm_classified": 4
+    "llm_classified": 4,
+    "auto_fixed_count": 8,
+    "auto_fixed_value": 150017.66
   },
   "incidents": [
     {
@@ -609,7 +623,8 @@ const DATA = {
       "txn_id": "T0035",
       "confidence": "high",
       "detail": "A refund for T0035 was started on 2026-08-10 and marked as done, but the money never actually left the bank account - the refund silently failed somewhere along the way.",
-      "fix": "Try the refund again (R0035), and this time don't mark it complete until you can see the money actually leave the account."
+      "fix": "Try the refund again (R0035), and this time don't mark it complete until you can see the money actually leave the account.",
+      "auto_fixable": false
     },
     {
       "date": "2026-08-14",
@@ -619,7 +634,8 @@ const DATA = {
       "txn_id": "T0013",
       "confidence": "high",
       "detail": "A chargeback dispute for T0013 was logged twice on 2026-08-14, but the bank only actually pulled the disputed money out of the account once - most likely the card network's dispute notice got processed twice.",
-      "fix": "Delete the duplicate chargeback entry (C0013dup) from the records, keeping only C0013. First confirm with the bank statement that the disputed amount was only pulled once."
+      "fix": "Delete the duplicate chargeback entry (C0013dup) from the records, keeping only C0013. First confirm with the bank statement that the disputed amount was only pulled once.",
+      "auto_fixable": true
     },
     {
       "date": "2026-08-15",
@@ -629,7 +645,8 @@ const DATA = {
       "txn_id": "",
       "confidence": "low",
       "detail": "On 2026-08-15, the money in the account doesn't match what the records say it should (off by about Rs.1,724.63) - and none of the usual explanations (a duplicate payout, a failed refund, a late fee, a duplicate chargeback) account for it.",
-      "fix": "This needs a person to look into directly - there isn't enough information here to safely guess what happened."
+      "fix": "This needs a person to look into directly - there isn't enough information here to safely guess what happened.",
+      "auto_fixable": false
     },
     {
       "date": "2026-08-20",
@@ -639,7 +656,8 @@ const DATA = {
       "txn_id": "T0075",
       "confidence": "high",
       "detail": "A refund for T0075 was started on 2026-08-20 and marked as done, but the money never actually left the bank account - the refund silently failed somewhere along the way.",
-      "fix": "Try the refund again (R0075), and this time don't mark it complete until you can see the money actually leave the account."
+      "fix": "Try the refund again (R0075), and this time don't mark it complete until you can see the money actually leave the account.",
+      "auto_fixable": false
     },
     {
       "date": "2026-08-25",
@@ -649,7 +667,8 @@ const DATA = {
       "txn_id": "T0094",
       "confidence": "high",
       "detail": "Razorpay's fee for T0094 was supposed to come out of the account on 2026-08-25, but the bank didn't actually take the money until 2026-08-28 - a short delay, not a real loss.",
-      "fix": "Nothing to do - the books already balanced themselves out once the late payment came through on 2026-08-28."
+      "fix": "Nothing to do - the books already balanced themselves out once the late payment came through on 2026-08-28.",
+      "auto_fixable": false
     },
     {
       "date": "2026-08-30",
@@ -659,7 +678,8 @@ const DATA = {
       "txn_id": "",
       "confidence": "low",
       "detail": "On 2026-08-30, the money in the account doesn't match what the records say it should (off by about Rs.5,539.95) - and none of the usual explanations (a duplicate payout, a failed refund, a late fee, a duplicate chargeback) account for it.",
-      "fix": "This needs a person to look into directly - there isn't enough information here to safely guess what happened."
+      "fix": "This needs a person to look into directly - there isn't enough information here to safely guess what happened.",
+      "auto_fixable": false
     },
     {
       "date": "2026-09-04",
@@ -669,7 +689,8 @@ const DATA = {
       "txn_id": "",
       "confidence": "low",
       "detail": "On 2026-09-04, the money in the account doesn't match what the records say it should (off by about Rs.263.11) - and none of the usual explanations (a duplicate payout, a failed refund, a late fee, a duplicate chargeback) account for it.",
-      "fix": "This needs a person to look into directly - there isn't enough information here to safely guess what happened."
+      "fix": "This needs a person to look into directly - there isn't enough information here to safely guess what happened.",
+      "auto_fixable": false
     },
     {
       "date": "2026-09-14",
@@ -679,7 +700,8 @@ const DATA = {
       "txn_id": "T0174",
       "confidence": "high",
       "detail": "A refund for T0174 was started on 2026-09-14 and marked as done, but the money never actually left the bank account - the refund silently failed somewhere along the way.",
-      "fix": "Try the refund again (R0174), and this time don't mark it complete until you can see the money actually leave the account."
+      "fix": "Try the refund again (R0174), and this time don't mark it complete until you can see the money actually leave the account.",
+      "auto_fixable": false
     },
     {
       "date": "2026-09-18",
@@ -689,7 +711,8 @@ const DATA = {
       "txn_id": "T0155",
       "confidence": "high",
       "detail": "A chargeback dispute for T0155 was logged twice on 2026-09-18, but the bank only actually pulled the disputed money out of the account once - most likely the card network's dispute notice got processed twice.",
-      "fix": "Delete the duplicate chargeback entry (C0155dup) from the records, keeping only C0155. First confirm with the bank statement that the disputed amount was only pulled once."
+      "fix": "Delete the duplicate chargeback entry (C0155dup) from the records, keeping only C0155. First confirm with the bank statement that the disputed amount was only pulled once.",
+      "auto_fixable": true
     },
     {
       "date": "2026-09-19",
@@ -699,7 +722,8 @@ const DATA = {
       "txn_id": "",
       "confidence": "low",
       "detail": "On 2026-09-19, the money in the account doesn't match what the records say it should (off by about Rs.6,166.35) - and none of the usual explanations (a duplicate payout, a failed refund, a late fee, a duplicate chargeback) account for it.",
-      "fix": "This needs a person to look into directly - there isn't enough information here to safely guess what happened."
+      "fix": "This needs a person to look into directly - there isn't enough information here to safely guess what happened.",
+      "auto_fixable": false
     },
     {
       "date": "2026-09-29",
@@ -709,7 +733,8 @@ const DATA = {
       "txn_id": "T0233",
       "confidence": "high",
       "detail": "Razorpay's fee for T0233 was supposed to come out of the account on 2026-09-29, but the bank didn't actually take the money until 2026-10-02 - a short delay, not a real loss.",
-      "fix": "Nothing to do - the books already balanced themselves out once the late payment came through on 2026-10-02."
+      "fix": "Nothing to do - the books already balanced themselves out once the late payment came through on 2026-10-02.",
+      "auto_fixable": false
     },
     {
       "date": "2026-10-03",
@@ -719,7 +744,8 @@ const DATA = {
       "txn_id": "T0213",
       "confidence": "high",
       "detail": "A chargeback dispute for T0213 was logged twice on 2026-10-03, but the bank only actually pulled the disputed money out of the account once - most likely the card network's dispute notice got processed twice.",
-      "fix": "Delete the duplicate chargeback entry (C0213dup) from the records, keeping only C0213. First confirm with the bank statement that the disputed amount was only pulled once."
+      "fix": "Delete the duplicate chargeback entry (C0213dup) from the records, keeping only C0213. First confirm with the bank statement that the disputed amount was only pulled once.",
+      "auto_fixable": true
     },
     {
       "date": "2026-10-04",
@@ -729,7 +755,8 @@ const DATA = {
       "txn_id": "T0254",
       "confidence": "high",
       "detail": "This payment (T0254) was recorded as paid out to the merchant twice on 2026-10-04, but the bank only actually sent the money once - most likely an automatic retry created a duplicate entry instead of noticing the first one already went through.",
-      "fix": "Delete the duplicate payout entry (S0254dup) from the records, keeping only S0254. First double-check against the actual bank statement that the merchant really was paid only once."
+      "fix": "Delete the duplicate payout entry (S0254dup) from the records, keeping only S0254. First double-check against the actual bank statement that the merchant really was paid only once.",
+      "auto_fixable": true
     },
     {
       "date": "2026-10-09",
@@ -739,7 +766,8 @@ const DATA = {
       "txn_id": "T0272",
       "confidence": "high",
       "detail": "Razorpay's fee for T0272 was supposed to come out of the account on 2026-10-09, but the bank didn't actually take the money until 2026-10-12 - a short delay, not a real loss.",
-      "fix": "Nothing to do - the books already balanced themselves out once the late payment came through on 2026-10-12."
+      "fix": "Nothing to do - the books already balanced themselves out once the late payment came through on 2026-10-12.",
+      "auto_fixable": false
     },
     {
       "date": "2026-10-14",
@@ -749,7 +777,8 @@ const DATA = {
       "txn_id": "T0292",
       "confidence": "high",
       "detail": "This payment (T0292) was recorded as paid out to the merchant twice on 2026-10-14, but the bank only actually sent the money once - most likely an automatic retry created a duplicate entry instead of noticing the first one already went through.",
-      "fix": "Delete the duplicate payout entry (S0292dup) from the records, keeping only S0292. First double-check against the actual bank statement that the merchant really was paid only once."
+      "fix": "Delete the duplicate payout entry (S0292dup) from the records, keeping only S0292. First double-check against the actual bank statement that the merchant really was paid only once.",
+      "auto_fixable": true
     },
     {
       "date": "2026-10-24",
@@ -759,7 +788,8 @@ const DATA = {
       "txn_id": "T0332",
       "confidence": "high",
       "detail": "A refund for T0332 was started on 2026-10-24 and marked as done, but the money never actually left the bank account - the refund silently failed somewhere along the way.",
-      "fix": "Try the refund again (R0332), and this time don't mark it complete until you can see the money actually leave the account."
+      "fix": "Try the refund again (R0332), and this time don't mark it complete until you can see the money actually leave the account.",
+      "auto_fixable": false
     },
     {
       "date": "2026-10-28",
@@ -769,7 +799,8 @@ const DATA = {
       "txn_id": "T0315",
       "confidence": "high",
       "detail": "A chargeback dispute for T0315 was logged twice on 2026-10-28, but the bank only actually pulled the disputed money out of the account once - most likely the card network's dispute notice got processed twice.",
-      "fix": "Delete the duplicate chargeback entry (C0315dup) from the records, keeping only C0315. First confirm with the bank statement that the disputed amount was only pulled once."
+      "fix": "Delete the duplicate chargeback entry (C0315dup) from the records, keeping only C0315. First confirm with the bank statement that the disputed amount was only pulled once.",
+      "auto_fixable": true
     },
     {
       "date": "2026-10-29",
@@ -779,7 +810,8 @@ const DATA = {
       "txn_id": "T0354",
       "confidence": "high",
       "detail": "Razorpay's fee for T0354 was supposed to come out of the account on 2026-10-29, but the bank didn't actually take the money until 2026-11-01 - a short delay, not a real loss.",
-      "fix": "Nothing to do - the books already balanced themselves out once the late payment came through on 2026-11-01."
+      "fix": "Nothing to do - the books already balanced themselves out once the late payment came through on 2026-11-01.",
+      "auto_fixable": false
     },
     {
       "date": "2026-11-03",
@@ -789,7 +821,8 @@ const DATA = {
       "txn_id": "T0374",
       "confidence": "high",
       "detail": "This payment (T0374) was recorded as paid out to the merchant twice on 2026-11-03, but the bank only actually sent the money once - most likely an automatic retry created a duplicate entry instead of noticing the first one already went through.",
-      "fix": "Delete the duplicate payout entry (S0374dup) from the records, keeping only S0374. First double-check against the actual bank statement that the merchant really was paid only once."
+      "fix": "Delete the duplicate payout entry (S0374dup) from the records, keeping only S0374. First double-check against the actual bank statement that the merchant really was paid only once.",
+      "auto_fixable": true
     },
     {
       "date": "2026-11-08",
@@ -799,7 +832,8 @@ const DATA = {
       "txn_id": "T0394",
       "confidence": "high",
       "detail": "This payment (T0394) was recorded as paid out to the merchant twice on 2026-11-08, but the bank only actually sent the money once - most likely an automatic retry created a duplicate entry instead of noticing the first one already went through.",
-      "fix": "Delete the duplicate payout entry (S0394dup) from the records, keeping only S0394. First double-check against the actual bank statement that the merchant really was paid only once."
+      "fix": "Delete the duplicate payout entry (S0394dup) from the records, keeping only S0394. First double-check against the actual bank statement that the merchant really was paid only once.",
+      "auto_fixable": true
     }
   ],
   "backtest": {
@@ -862,6 +896,8 @@ function renderStats() {
     [fmtRs(s.self_resolving_value), 'Self-resolving timing noise', 'ok'],
     [`${s.rule_classified}/${s.incident_count}`, 'Explained same-day by rules', ''],
     [s.llm_classified, 'Handed to LLM review', ''],
+    [`${s.auto_fixed_count}/${s.incident_count}`, 'Auto-fixed by the agent', 'ok'],
+    [fmtRs(s.auto_fixed_value), 'Value auto-corrected', 'ok'],
   ];
   document.getElementById('stat-grid').innerHTML = tiles.map(([v, l, cls]) => `
     <div class="stat-tile">
@@ -879,7 +915,7 @@ function renderIncidentList() {
     <div class="incident-row ${i === activeIdx ? 'active' : ''}" data-idx="${i}">
       <span class="idx">${String(i + 1).padStart(2, '0')}</span>
       <span class="meta">
-        <span class="bucket">${inc.bucket_label}</span>
+        <span class="bucket">${inc.bucket_label}${inc.auto_fixable ? ' <span class="row-fixed">&#10003; auto-fixed</span>' : ''}</span>
         <span class="date">${inc.date}${inc.txn_id ? ' · ' + inc.txn_id : ''}</span>
       </span>
       <span class="amt ${inc.delta > 0 ? 'pos' : ''}">${inc.delta > 0 ? '+' : '-'}${fmtRs(inc.delta)}</span>
@@ -901,6 +937,9 @@ function renderIncidentDetail() {
     <div class="detail-eyebrow">
       <span class="eyebrow">Incident ${String(activeIdx + 1).padStart(2, '0')}</span>
       <span class="badge ${isOk ? 'ok' : ''}">${inc.confidence}</span>
+      ${inc.auto_fixable
+        ? '<span class="badge ok">&#10003; auto-fixed by the agent</span>'
+        : '<span class="badge">action required - human</span>'}
     </div>
     <div class="detail-title">${inc.bucket_label}</div>
     <div class="detail-sub">${inc.date}${inc.txn_id ? ' · ' + inc.txn_id : ' · transaction not individually identified'}</div>
@@ -910,7 +949,7 @@ function renderIncidentDetail() {
       <p>${inc.detail}</p>
     </div>
     <div class="detail-block fix">
-      <span class="eyebrow">The fix</span>
+      <span class="eyebrow">${inc.auto_fixable ? 'What the agent did' : 'The fix'}</span>
       <p>${inc.fix}</p>
     </div>
   `;

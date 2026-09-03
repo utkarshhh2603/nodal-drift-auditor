@@ -32,6 +32,13 @@ class DriftEvent:
     detail: str = ""
     txn_id: str = ""  # "" for a genuinely unexplained event - it isn't tied to one
     suggested_fix: str = ""
+    # None unless engine/remediate.py can safely apply this correction on
+    # its own: {"table": "settlements"|"chargebacks", "id_column": ...,
+    # "row_ids": [...]}. Only ever set for a pure bookkeeping error the
+    # agent made in its own records (an extra duplicate row) - never for
+    # anything that requires actually moving money, which needs a human's
+    # authorization the agent doesn't have.
+    auto_fix: dict = None
 
 
 @dataclass
@@ -42,6 +49,7 @@ class Candidate:
     txn_id: str = ""
     reversal_date: object = None  # for fee_sweep_timing: date the reversal was confirmed on
     suggested_fix: str = ""
+    auto_fix: dict = None
 
 
 def find_events(replay_df):
@@ -102,7 +110,9 @@ def classify_events(events, settlements, refunds, fee_sweeps, chargebacks):
                     f"came through - the books are back in balance now.",
                     "Nothing to do - this was already resolved by the late payment flagged earlier.",
                 )
-            results.append(DriftEvent(d, event_delta, c.bucket, "high", c.detail, c.txn_id, c.suggested_fix))
+            results.append(DriftEvent(
+                d, event_delta, c.bucket, "high", c.detail, c.txn_id, c.suggested_fix, c.auto_fix,
+            ))
 
         residual = round(abs(delta) - matched_total, 2)
         if residual > TOLERANCE:
@@ -141,6 +151,12 @@ def _gather_candidates(d, delta, sign, settlements, refunds, fee_sweeps, chargeb
             suggested_fix=f"Delete the duplicate payout entry ({duplicate_ids}) from the records, "
                 f"keeping only {original_id}. First double-check against the actual bank "
                 f"statement that the merchant really was paid only once.",
+            # Safe to auto-apply: this only deletes a row the aggregator's
+            # own system wrote in error - it doesn't move any money, since
+            # replay.py already confirmed (by diffing against the real bank
+            # ledger) that the bank only ever paid out once.
+            auto_fix={"table": "settlements", "id_column": "settlement_id",
+                      "row_ids": list(rows["settlement_id"].iloc[1:])},
         ))
 
     # Stuck refund: a refund row not in 'processed' status on this day. Same
@@ -203,6 +219,10 @@ def _gather_candidates(d, delta, sign, settlements, refunds, fee_sweeps, chargeb
             suggested_fix=f"Delete the duplicate chargeback entry ({duplicate_ids}) from the "
                 f"records, keeping only {original_id}. First confirm with the bank statement "
                 f"that the disputed amount was only pulled once.",
+            # Same reasoning as duplicate_settlement above - deleting our
+            # own erroneous duplicate row, not moving money.
+            auto_fix={"table": "chargebacks", "id_column": "chargeback_id",
+                      "row_ids": list(rows["chargeback_id"].iloc[1:])},
         ))
 
     return candidates

@@ -80,6 +80,14 @@ on every push — the backtest script exits nonzero if recall drops below
 100% or any false positive appears, so the 100%-recall claim below is
 continuously checked, not a one-time assertion.
 
+Let the agent actually fix what it safely can, and get a checklist for
+everything else (see [Remediation](#remediation) for what "safely" means
+here):
+
+```bash
+python report.py --apply-fixes
+```
+
 ## How it works
 
 1. **`data/generate_data.py`** — builds a synthetic nodal account: 460
@@ -123,6 +131,8 @@ continuously checked, not a one-time assertion.
 5. **`report.py`** — orchestrates the pipeline, prints the incident summary,
    exception table, and per-incident suggested fix, and writes `report.csv`
    (`--data-dir` points it at any batch, not just the default one).
+   `--apply-fixes` additionally invokes `engine/remediate.py` - see
+   [Remediation](#remediation).
 
 ## What "the bar" looks like here
 
@@ -150,9 +160,13 @@ continuously checked, not a one-time assertion.
   `fee_sweep_timing` says plainly "nothing to do — it already balanced
   itself out," and `unexplained` says "this needs a person to look into
   directly," honestly, rather than a fabricated fix for something the rule
-  engine doesn't actually understand. This is still diagnosis-and-
-  recommendation, not autonomous execution — gated for a human to apply,
-  matching the track's own bar ("every money action explainable, bounded
+  engine doesn't actually understand.
+- **Two incident types get applied automatically, the rest stay gated for
+  a human** — see [Remediation](#remediation). The dividing line is
+  whether real money would move: deleting the aggregator's own erroneous
+  duplicate row is safe to automate, re-triggering a refund or authorizing
+  a payout reversal is not, and the pipeline never blurs that line.
+  Matches the track's own bar ("every money action explainable, bounded
   and gated").
 
 ## Measured accuracy
@@ -193,6 +207,52 @@ Detection: 0/0 incidents explained same-day by rules; 0 handed to LLM review
 Zero incidents on a batch seeded with zero incidents — the tool doesn't
 just always find something to flag.
 
+## Remediation
+
+`report.py --apply-fixes` doesn't stop at diagnosis — it actually applies
+the corrections that are safe to make on its own, via `engine/remediate.py`.
+
+**The boundary, and why it's drawn there:** `duplicate_settlement` and
+`chargeback_duplicate` are the only two incident types that ever carry an
+`auto_fix` (set in `engine/classify.py`, at the exact place the specific
+duplicate row IDs are already known). Both are cases where the
+aggregator's own system wrote an erroneous *extra* record - and
+`replay.py` already proved, by diffing against the real bank ledger, that
+no extra money actually moved. Deleting that duplicate row is a pure
+bookkeeping correction. Every other incident - a stuck refund (money
+needs to actually move, via the payment processor), an unexplained
+residual (the cause isn't even confirmed) - requires authorization this
+pipeline doesn't have, so it stays a numbered checklist for a human
+instead of an auto-fix. The line is drawn at "does this move real money,"
+not at "is this easy."
+
+**What actually happens:** `engine/remediate.py` copies the recorded
+books to `<data-dir>/corrected/`, removes exactly the flagged duplicate
+rows (the original data is never modified), then re-runs the audit
+against the corrected copy and confirms each fixed date's drift is
+genuinely gone - not just marked fixed. Real output from the default
+batch:
+
+```
+AUTO-FIXED BY THE AGENT (8 incident(s), Rs.150,017.66 corrected)
+  [2026-08-14] chargeback_duplicate (T0013): removed C0013dup from chargebacks.csv - verified: drift on this date is now zero
+  [2026-10-04] duplicate_settlement (T0254): removed S0254dup from settlements.csv - verified: drift on this date is now zero
+  ... (6 more)
+
+Corrected books written to: data/generated/corrected
+
+NEEDS HUMAN ACTION (8 incident(s) - moving money or an unclear cause, neither of which the agent is authorized to act on alone):
+  1. [2026-08-10] stuck_refund (T0035, Rs.38,804.70)
+     Try the refund again (R0035), and this time don't mark it complete until you can see the money actually leave the account.
+  ... (7 more)
+```
+Re-running `report.py --data-dir data/generated/corrected` afterward
+shows exactly 12 incidents instead of 20, and `duplicate_settlement`/
+`chargeback_duplicate` are completely absent from the bucket counts -
+`tests/test_remediate.py` asserts this holds (both that fixed incidents
+vanish and that untouched incidents survive unchanged) on a freshly
+generated batch, not just the default one.
+
 ## Throughput
 
 `scripts/benchmark.py` generates a large, unseeded batch and times the
@@ -219,10 +279,15 @@ groupby/sum operations amortizing better at volume) rather than degrading.
 + the live pipeline output) is a self-contained, static one-page site: hero
 stats, a clickable exception list with a live detail panel per incident,
 the pipeline explained in four steps, and the backtested recall table.
-No build tooling required — it's plain HTML/CSS/JS with the data embedded
-as JSON at build time. Regenerate it any time the underlying data or
-classification logic changes; the committed `index.html` is a snapshot,
-not a live view.
+Auto-fixable incidents carry a "✓ auto-fixed" tag in the list and an
+"✓ AUTO-FIXED BY THE AGENT" badge in the detail panel (with the fix
+section relabeled "What the agent did"); everything else shows
+"ACTION REQUIRED — HUMAN" instead — matching `engine/remediate.py`'s
+boundary exactly, computed from the same `auto_fix` field, not a separate
+guess. No build tooling required — it's plain HTML/CSS/JS with the data
+embedded as JSON at build time. Regenerate it any time the underlying
+data or classification logic changes; the committed `index.html` is a
+snapshot, not a live view.
 
 ## Known limitations / next steps
 

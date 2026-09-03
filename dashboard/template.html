@@ -303,6 +303,18 @@
     font-size: 14px;
     font-weight: 600;
   }
+  .row-fixed {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    color: var(--ok);
+    background: var(--ok-soft);
+    border-radius: 4px;
+    padding: 2px 6px;
+    margin-left: 6px;
+    white-space: nowrap;
+  }
   .incident-row .date {
     font-family: var(--mono);
     font-size: 11px;
@@ -319,7 +331,7 @@
   .incident-row .amt.pos { color: var(--ok); }
 
   .incident-detail { padding: 40px; }
-  .detail-eyebrow { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+  .detail-eyebrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
   .badge {
     font-family: var(--mono);
     font-size: 11px;
@@ -610,6 +622,8 @@ function renderStats() {
     [fmtRs(s.self_resolving_value), 'Self-resolving timing noise', 'ok'],
     [`${s.rule_classified}/${s.incident_count}`, 'Explained same-day by rules', ''],
     [s.llm_classified, 'Handed to LLM review', ''],
+    [`${s.auto_fixed_count}/${s.incident_count}`, 'Auto-fixed by the agent', 'ok'],
+    [fmtRs(s.auto_fixed_value), 'Value auto-corrected', 'ok'],
   ];
   document.getElementById('stat-grid').innerHTML = tiles.map(([v, l, cls]) => `
     <div class="stat-tile">
@@ -627,7 +641,7 @@ function renderIncidentList() {
     <div class="incident-row ${i === activeIdx ? 'active' : ''}" data-idx="${i}">
       <span class="idx">${String(i + 1).padStart(2, '0')}</span>
       <span class="meta">
-        <span class="bucket">${inc.bucket_label}</span>
+        <span class="bucket">${inc.bucket_label}${inc.auto_fixable ? ' <span class="row-fixed">&#10003; auto-fixed</span>' : ''}</span>
         <span class="date">${inc.date}${inc.txn_id ? ' · ' + inc.txn_id : ''}</span>
       </span>
       <span class="amt ${inc.delta > 0 ? 'pos' : ''}">${inc.delta > 0 ? '+' : '-'}${fmtRs(inc.delta)}</span>
@@ -649,6 +663,9 @@ function renderIncidentDetail() {
     <div class="detail-eyebrow">
       <span class="eyebrow">Incident ${String(activeIdx + 1).padStart(2, '0')}</span>
       <span class="badge ${isOk ? 'ok' : ''}">${inc.confidence}</span>
+      ${inc.auto_fixable
+        ? '<span class="badge ok">&#10003; auto-fixed by the agent</span>'
+        : '<span class="badge">action required - human</span>'}
     </div>
     <div class="detail-title">${inc.bucket_label}</div>
     <div class="detail-sub">${inc.date}${inc.txn_id ? ' · ' + inc.txn_id : ' · transaction not individually identified'}</div>
@@ -658,7 +675,7 @@ function renderIncidentDetail() {
       <p>${inc.detail}</p>
     </div>
     <div class="detail-block fix">
-      <span class="eyebrow">The fix</span>
+      <span class="eyebrow">${inc.auto_fixable ? 'What the agent did' : 'The fix'}</span>
       <p>${inc.fix}</p>
     </div>
   `;
